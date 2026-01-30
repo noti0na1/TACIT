@@ -42,7 +42,15 @@ private object ReplClasspath:
         paths += java.nio.file.Paths.get(loc.toURI).toString
       catch case _: Exception => ()
 
-    Array("-classpath", paths.mkString(java.io.File.pathSeparator), "-color:never")
+    Array(
+      "-classpath", paths.mkString(java.io.File.pathSeparator),
+      "-color:never",
+      "-deprecation",
+      "-feature",
+      "-unchecked",
+      "-Yexplicit-nulls",
+      "-Wsafe-init"
+    )
 
 /** A REPL session that maintains state across executions */
 class ReplSession(val id: String):
