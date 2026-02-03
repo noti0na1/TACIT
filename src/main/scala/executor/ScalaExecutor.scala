@@ -78,6 +78,15 @@ class ReplSession(val id: String):
   
   /** Execute code in this session and return the result */
   def execute(code: String): ExecutionResult =
+    CodeValidator.validate(code) match
+      case Left(violations) =>
+        return ExecutionResult(
+          success = false,
+          output = "",
+          error = Some(CodeValidator.formatErrors(violations))
+        )
+      case Right(_) => ()
+
     outputCapture.reset()
     
     try
@@ -140,6 +149,15 @@ class SessionManager:
 object ScalaExecutor:
   /** Execute a Scala code snippet and return the result */
   def execute(code: String): ExecutionResult =
+    CodeValidator.validate(code) match
+      case Left(violations) =>
+        return ExecutionResult(
+          success = false,
+          output = "",
+          error = Some(CodeValidator.formatErrors(violations))
+        )
+      case Right(_) => ()
+
     val outputCapture = new ByteArrayOutputStream()
     val printStream = new PrintStream(outputCapture, true, StandardCharsets.UTF_8)
     

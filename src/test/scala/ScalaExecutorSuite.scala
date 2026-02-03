@@ -40,14 +40,14 @@ class ScalaExecutorSuite extends munit.FunSuite:
     assert(result.success)
     assert(result.output.contains("List(1, 2)"))
 
-  test("use java.io.File"):
+  test("reject java.io.File"):
     val result = ScalaExecutor.execute("""
       import java.io.File
       val f = new File("/tmp")
       f.isDirectory
     """)
-    assert(result.success)
-    assert(result.output.contains("true"))
+    assert(!result.success)
+    assert(result.error.exists(_.contains("file-io-java")))
 
   test("use java.time"):
     val result = ScalaExecutor.execute("""
@@ -66,11 +66,10 @@ class ScalaExecutorSuite extends munit.FunSuite:
     assert(result.success)
     assert(result.output.contains("true"))
 
-  test("use scala.io.Source"):
+  test("reject scala.io.Source"):
     val result = ScalaExecutor.execute("""
       import scala.io.Source
       Source.fromString("hello\nworld").getLines().toList
     """)
-    assert(result.success, s"execution failed: ${result.error}")
-    assert(result.output.contains("hello") && result.output.contains("world"),
-      s"unexpected output: ${result.output}")
+    assert(!result.success)
+    assert(result.error.exists(_.contains("file-io-scala")))
