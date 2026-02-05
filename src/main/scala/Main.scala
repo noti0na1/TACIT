@@ -3,21 +3,16 @@ import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import executor.CodeRecorder
 import config.Config
+import core.*
+import Context.*
 
 /** SafeExecMCP - A Model Context Protocol server for safe Scala code execution */
 @main def SafeExecMCP(args: String*): Unit =
   Config.parseCliArgs(args.toArray) match
     case None =>  // Errors should have been displayed by the parser
-    case Some(config) =>
-      val recordDir: Option[String] = config.recordPath
-
-      val recorder: Option[CodeRecorder] = recordDir.map { dir =>
-        new CodeRecorder(java.io.File(dir))
-      }
-
-      val server = new McpServer(recorder)
+    case Some(config) => usingContext(config):
+      val server = new McpServer
       val reader = new BufferedReader(new InputStreamReader(System.in))
       val writer = new PrintWriter(System.out, true)
 
@@ -30,7 +25,7 @@ import config.Config
           new java.io.File(classOf[McpServer].getProtectionDomain.getCodeSource.getLocation.toURI).getAbsolutePath
         }.getOrElse("<path/to/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar>")
         val cwd = System.getProperty("user.dir")
-        val recordingStatus = recordDir match
+        val recordingStatus = config.recordPath match
           case Some(dir) => s"Recording: ON -> $dir"
           case None      => "Recording: OFF"
 
@@ -112,7 +107,6 @@ import config.Config
           log(s"Error: ${e.getMessage}")
           e.printStackTrace(System.err)
       finally
-        recorder.foreach(_.close())
         log("Server shutting down...")
 
 def sendResponse(writer: PrintWriter, response: JsonRpcResponse): Unit =

@@ -3,6 +3,8 @@ package mcp
 import io.circe.*
 import io.circe.syntax.*
 import executor.{ScalaExecutor, SessionManager, ExecutionResult, CodeRecorder}
+import core.*
+import Context.*
 
 private val InterfaceReference: String =
   val preamble =
@@ -24,10 +26,11 @@ private val InterfaceReference: String =
   preamble + source
 
 /** MCP Server implementation for Scala code execution */
-class McpServer(recorder: Option[CodeRecorder] = None):
+class McpServer(using Context):
   private val sessionManager = new SessionManager()
-  
-  
+
+  def recorder: Option[CodeRecorder] = ctx.recorder
+
   /** Handle a JSON-RPC request and return a response */
   def handleRequest(request: JsonRpcRequest): Option[JsonRpcResponse] =
     request.method match

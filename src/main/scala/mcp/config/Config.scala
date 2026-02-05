@@ -14,8 +14,7 @@ object Config:
       programName("SafeExecMCP"),
       opt[String]('r', "record")
         .action((x, c) => c.copy(recordPath = Some(x)))
-        .text("Record code execution requests in the given directory.")
-        .optional()
+        .text("Record code execution requests in the given directory."),
     )
 
   def parseCliArgs(args: Array[String]): Option[Config] =
