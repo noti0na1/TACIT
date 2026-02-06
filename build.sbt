@@ -43,7 +43,7 @@ lazy val root = project
       "io.circe" %% "circe-core" % "0.14.14",
       "io.circe" %% "circe-generic" % "0.14.14",
       "io.circe" %% "circe-parser" % "0.14.14",
-      "com.github.scopt" %% "scopt" % "4.1.0",
+      "com.github.scopt" %% "scopt" % "4.1.1-M3",
       "org.scala-lang" %% "scala3-compiler" % scala3Version,
       "org.scala-lang" %% "scala3-repl" % scala3Version,
       "org.scalameta" %% "munit" % "1.2.2" % Test,
