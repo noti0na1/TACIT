@@ -24,7 +24,7 @@ case class JsonRpcResponse(
 )
 
 object JsonRpcResponse:
-  given Encoder[JsonRpcResponse] = deriveEncoder
+  given Encoder[JsonRpcResponse] = deriveEncoder[JsonRpcResponse].mapJson(_.dropNullValues)
   
   def success(id: Option[Json], result: Json): JsonRpcResponse =
     JsonRpcResponse(result = Some(result), id = id)
@@ -110,4 +110,4 @@ object TextContent:
 
 case class CallToolResult(content: List[TextContent], isError: Option[Boolean] = None)
 object CallToolResult:
-  given Encoder[CallToolResult] = deriveEncoder
+  given Encoder[CallToolResult] = deriveEncoder[CallToolResult].mapJson(_.dropNullValues)
