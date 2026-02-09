@@ -28,6 +28,7 @@ import Context.*
         val recordingStatus = config.recordPath match
           case Some(dir) => s"Recording: ON -> $dir"
           case None      => "Recording: OFF"
+        val strictStatus = if config.strictMode then "Strict:    ON (file ops blocked in exec)" else "Strict:    OFF"
 
         System.err.println(
           s"""
@@ -37,6 +38,7 @@ import Context.*
             |║  Transport: stdio (JSON-RPC 2.0)                                 ║
             |║  Protocol:  Model Context Protocol (MCP)                         ║
             |║  $recordingStatus
+            |║  $strictStatus
             |╚══════════════════════════════════════════════════════════════════╝
             |
             |Available tools: execute_scala, create_repl_session, execute_in_session,

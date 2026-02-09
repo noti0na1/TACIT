@@ -78,13 +78,14 @@ class Network(val allowedHosts: Set[String]) extends caps.SharedCapability:
 /** A capability that grants scoped permission to run a set of commands.
  *
  *  Only commands in `allowedCommands` may be executed; any other command
- *  causes a `SecurityException`. */
-class ProcessPermission(val allowedCommands: Set[String]) extends caps.SharedCapability:
-  def validateCommand(command: String): Unit =
-    if !allowedCommands.contains(command) then
-      throw SecurityException(
-        s"Access denied: command '$command' is not in allowed commands $allowedCommands"
-      )
+ *  causes a `SecurityException`.
+ *
+ *  In strict mode, file operation commands are also blocked to enforce
+ *  proper use of `requestFileSystem` for file access. */
+class ProcessPermission(
+  val allowedCommands: Set[String],
+  val strictMode: Boolean = false
+) extends caps.SharedCapability
 
 // ─── Interface ──────────────────────────────────────────────────────────────
 

@@ -4,6 +4,7 @@ import scopt.OParser
 
 case class Config(
   recordPath: Option[String] = None,
+  strictMode: Boolean = false,
 )
 
 object Config:
@@ -15,6 +16,9 @@ object Config:
       opt[String]('r', "record")
         .action((x, c) => c.copy(recordPath = Some(x)))
         .text("Record code execution requests in the given directory."),
+      opt[Unit]('s', "strict")
+        .action((_, c) => c.copy(strictMode = true))
+        .text("Enable strict mode: block file operations (cat, ls, rm, etc.) through exec."),
     )
 
   def parseCliArgs(args: Array[String]): Option[Config] =

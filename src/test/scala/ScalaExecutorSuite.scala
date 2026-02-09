@@ -1,6 +1,8 @@
 import executor.ScalaExecutor
+import core.Context
 
 class ScalaExecutorSuite extends munit.FunSuite:
+  given Context = Context(None, strictMode = false)
 
   test("execute simple expression"):
     val result = ScalaExecutor.execute("1 + 1")

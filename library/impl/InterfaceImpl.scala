@@ -2,7 +2,10 @@ package library
 
 import language.experimental.captureChecking
 
-class InterfaceImpl(private val createFS: (String, String -> Boolean) => FileSystem^) extends Interface:
+class InterfaceImpl(
+  private val createFS: (String, String -> Boolean) => FileSystem^,
+  private val strictMode: Boolean = false
+) extends Interface:
   export FileOps.*
   export ProcessOps.*
   export WebOps.*
@@ -12,7 +15,7 @@ class InterfaceImpl(private val createFS: (String, String -> Boolean) => FileSys
     op(using fs)
 
   def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T): T =
-    val perm = new ProcessPermission(commands)
+    val perm = new ProcessPermission(commands, strictMode)
     op(using perm)
 
   def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T): T =

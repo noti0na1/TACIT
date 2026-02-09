@@ -1,6 +1,8 @@
 import executor.{ScalaExecutor, SessionManager}
+import core.Context
 
 class LibraryIntegrationSuite extends munit.FunSuite:
+  given Context = Context(None, strictMode = false)
 
   /** Helper: assert that code fails to compile in the REPL with an error matching `pattern`. */
   private def assertCompileError(code: String, pattern: String)(using loc: munit.Location): Unit =
@@ -68,7 +70,7 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     assert(result.output.contains("find me here"), s"unexpected output: ${result.output}")
 
   test("library available in session"):
-    val manager = new SessionManager()
+    val manager = new SessionManager
     val sessionId = manager.createSession()
 
     val r1 = manager.executeInSession(sessionId, """
@@ -112,7 +114,7 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     )
 
   test("session preserves state across library calls"):
-    val manager = new SessionManager()
+    val manager = new SessionManager
     val sessionId = manager.createSession()
 
     manager.executeInSession(sessionId, """

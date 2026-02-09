@@ -5,6 +5,8 @@ import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.UUID
 import dotty.tools.repl.{ReplDriver, State}
 import java.nio.charset.StandardCharsets
+import core.Context
+import Context.*
 
 /** Result of code execution */
 case class ExecutionResult(
@@ -55,14 +57,17 @@ private object ReplClasspath:
     )
 
 /** Preamble code injected before user code to make the library API available. */
-private val LibraryPreamble: String =
-  """|import library.*
-     |val api: Interface = new InterfaceImpl((root, check) => new RealFileSystem(java.nio.file.Path.of(root), check))
-     |import api.*
-     |""".stripMargin
+private def libraryPreamble(strictMode: Boolean): String =
+  s"""|import library.*
+      |val api: Interface = new InterfaceImpl(
+      |  (root, check) => new RealFileSystem(java.nio.file.Path.of(root), check),
+      |  $strictMode
+      |)
+      |import api.*
+      |""".stripMargin
 
 /** A REPL session that maintains state across executions */
-class ReplSession(val id: String):
+class ReplSession(val id: String)(using Context):
   private val outputCapture = new ByteArrayOutputStream()
   private val printStream = new PrintStream(outputCapture, true, StandardCharsets.UTF_8)
 
@@ -74,8 +79,8 @@ class ReplSession(val id: String):
   private var state: State =
     val s0 = driver.initialState
     // Run preamble once to make library API available in the session
-    driver.run(LibraryPreamble)(using s0)
-  
+    driver.run(libraryPreamble(ctx.strictMode))(using s0)
+
   /** Execute code in this session and return the result */
   def execute(code: String): ExecutionResult =
     CodeValidator.validate(code) match
@@ -88,7 +93,7 @@ class ReplSession(val id: String):
       case Right(_) => ()
 
     outputCapture.reset()
-    
+
     try
       val oldOut = System.out
       val oldErr = System.err
@@ -99,7 +104,7 @@ class ReplSession(val id: String):
       finally
         System.setOut(oldOut)
         System.setErr(oldErr)
-      
+
       printStream.flush()
       val output = outputCapture.toString(StandardCharsets.UTF_8).trim
       ExecutionResult(success = true, output = output)
@@ -115,32 +120,32 @@ class ReplSession(val id: String):
         )
 
 object ReplSession:
-  def create(): ReplSession = new ReplSession(UUID.randomUUID().toString)
+  def create(using Context): ReplSession = new ReplSession(UUID.randomUUID().toString)
 
 /** Manages multiple REPL sessions */
-class SessionManager:
+class SessionManager(using Context):
   private val sessions = mutable.Map[String, ReplSession]()
-  
+
   /** Create a new session and return its ID */
   def createSession(): String =
-    val session = ReplSession.create()
+    val session = ReplSession.create
     sessions(session.id) = session
     session.id
-  
+
   /** Delete a session by ID */
   def deleteSession(sessionId: String): Boolean =
     sessions.remove(sessionId).isDefined
-  
+
   /** Get a session by ID */
   def getSession(sessionId: String): Option[ReplSession] =
     sessions.get(sessionId)
-  
+
   /** Execute code in a specific session */
   def executeInSession(sessionId: String, code: String): Either[String, ExecutionResult] =
     sessions.get(sessionId) match
       case Some(session) => Right(session.execute(code))
       case None => Left(s"Session not found: $sessionId")
-  
+
   /** List all active session IDs */
   def listSessions(): List[String] =
     sessions.keys.toList
@@ -148,7 +153,7 @@ class SessionManager:
 /** Executes Scala code snippets in isolation (stateless) */
 object ScalaExecutor:
   /** Execute a Scala code snippet and return the result */
-  def execute(code: String): ExecutionResult =
+  def execute(code: String)(using Context): ExecutionResult =
     CodeValidator.validate(code) match
       case Left(violations) =>
         return ExecutionResult(
@@ -160,7 +165,7 @@ object ScalaExecutor:
 
     val outputCapture = new ByteArrayOutputStream()
     val printStream = new PrintStream(outputCapture, true, StandardCharsets.UTF_8)
-    
+
     try
       val driver = new ReplDriver(
         ReplClasspath.args,
@@ -169,7 +174,7 @@ object ScalaExecutor:
       )
       var state = driver.initialState
       // Run preamble to make library API available
-      state = driver.run(LibraryPreamble)(using state)
+      state = driver.run(libraryPreamble(ctx.strictMode))(using state)
       outputCapture.reset()
 
       val oldOut = System.out
@@ -181,7 +186,7 @@ object ScalaExecutor:
       finally
         System.setOut(oldOut)
         System.setErr(oldErr)
-      
+
       printStream.flush()
       val output = outputCapture.toString(StandardCharsets.UTF_8).trim
       ExecutionResult(success = true, output = output)

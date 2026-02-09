@@ -11,7 +11,7 @@ object ProcessOps:
     workingDir: Option[String] = None,
     timeoutMs: Long = 30000
   )(using pp: ProcessPermission): ProcessResult =
-    pp.validateCommand(command)
+    CommandValidator.validate(command, pp)
     val cmdList = new java.util.ArrayList[String]()
     cmdList.add(command)
     args.foreach(cmdList.add)

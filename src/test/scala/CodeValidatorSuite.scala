@@ -1,6 +1,8 @@
 import executor.{CodeValidator, ScalaExecutor, SessionManager}
+import core.Context
 
 class CodeValidatorSuite extends munit.FunSuite:
+  given Context = Context(None, strictMode = false)
 
   // ---- Rejection tests by category ----
 
@@ -307,7 +309,7 @@ class CodeValidatorSuite extends munit.FunSuite:
     assert(result.output.contains("java.io is just a string"))
 
   test("SessionManager rejects forbidden code"):
-    val sm = new SessionManager()
+    val sm = new SessionManager
     val sid = sm.createSession()
     val result = sm.executeInSession(sid, "import java.io.File")
     assert(result.isRight) // Right(ExecutionResult) from executeInSession

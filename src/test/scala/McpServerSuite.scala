@@ -4,7 +4,7 @@ import io.circe.syntax.*
 import core.Context
 
 class McpServerSuite extends munit.FunSuite:
-  given defaultTestCtx: Context = Context(None)
+  given defaultTestCtx: Context = Context(None, strictMode = false)
 
   test("initialize request"):
     val server = new McpServer()
