@@ -49,6 +49,9 @@ class McpServer(using Context):
       case "notifications/cancelled" =>
         // Notification, no response needed
         None
+      case other if other.startsWith("notifications/") =>
+        // All notifications - no response needed
+        None
       case other =>
         Some(JsonRpcResponse.error(
           request.id,

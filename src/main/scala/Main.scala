@@ -9,12 +9,20 @@ import Context.*
 
 /** SafeExecMCP - A Model Context Protocol server for safe Scala code execution */
 @main def SafeExecMCP(args: String*): Unit =
+  // Save the real stdout for JSON-RPC before any REPL compiler can pollute it.
+  // The Scala compiler (especially with capture checking) may write diagnostic
+  // output directly to System.out, bypassing ReplDriver's capture stream.
+  // Redirecting System.out to stderr ensures compiler noise never corrupts
+  // the JSON-RPC channel.
+  val jsonRpcOut = System.out
+  System.setOut(System.err)
+
   Config.parseCliArgs(args.toArray) match
     case None =>  // Errors should have been displayed by the parser
     case Some(config) => usingContext(config):
       val server = new McpServer
       val reader = new BufferedReader(new InputStreamReader(System.in))
-      val writer = new PrintWriter(System.out, true)
+      val writer = new PrintWriter(jsonRpcOut, true)
 
       // Log to stderr so it doesn't interfere with JSON-RPC communication
       def log(msg: String): Unit =
