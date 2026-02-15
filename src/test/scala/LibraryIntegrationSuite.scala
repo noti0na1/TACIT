@@ -133,6 +133,20 @@ class LibraryIntegrationSuite extends munit.FunSuite:
       "capture"
     )
 
+  test("requestFileSystem inside Classified.map is rejected by capture checker"):
+    assertCompileError(
+      """
+      val secret = classify("password")
+      secret.map { content =>
+        requestFileSystem("/tmp") {
+          access("/tmp/leaked.txt").write(content)
+        }
+        content
+      }
+      """,
+      "capture"
+    )
+
   test("session preserves state across library calls"):
     val manager = new SessionManager
     val sessionId = manager.createSession()
