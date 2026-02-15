@@ -11,7 +11,7 @@ class LibrarySuite extends munit.FunSuite:
   override def beforeEach(context: BeforeEach): Unit =
     tmpDir = Files.createTempDirectory("sandbox-test")
 
-  val interface: Interface = new InterfaceImpl( (root, check) => new RealFileSystem(Path.of(root), check) )
+  val interface: Interface = new InterfaceImpl( (root, check, classified) => new RealFileSystem(Path.of(root), check, classified) )
 
   import interface.*
 
@@ -157,6 +157,39 @@ class LibrarySuite extends munit.FunSuite:
       assert(ex.getMessage.nn.contains("Access denied"))
     }
   }
+  test("classified path enforcement on real file system") {
+    val secretDir = tmpDir.resolve("secret")
+    Files.createDirectories(secretDir)
+    val classifiedInterface: Interface = new InterfaceImpl(
+      (root, check, classified) => new RealFileSystem(Path.of(root), check, classified),
+      false,
+      Set(secretDir)
+    )
+    import classifiedInterface.*
+
+    requestFileSystem(tmpDir.toString) {
+      // Normal file works
+      val pub = access(tmpDir.resolve("public.txt").toString)
+      pub.write("public data")
+      assertEquals(pub.read(), "public data")
+      assert(!pub.isClassified)
+
+      // Classified file: normal ops blocked
+      val sec = access(secretDir.resolve("data.txt").toString)
+      assert(sec.isClassified)
+      intercept[SecurityException] { sec.write("nope") }
+      intercept[SecurityException] { sec.read() }
+
+      // Classified ops work
+      sec.writeClassified(classifiedInterface.classify("top-secret"))
+      val content = sec.readClassified()
+      assertEquals(content.toString, "Classified(***)")
+
+      // readClassified on non-classified throws
+      intercept[SecurityException] { pub.readClassified() }
+    }
+  }
+
   // --- Compile-time capability leak examples ---
   // The following code would fail to compile with capture checking enabled,
   // because the capability `fs` cannot escape the scope of `requestFileSystem`.

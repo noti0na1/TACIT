@@ -5,7 +5,7 @@ import language.experimental.captureChecking
 
 class VirtualEnvSuite extends munit.FunSuite:
 
-  val interface: Interface = new InterfaceImpl((root, check) => new VirtualFileSystem(Path.of(root), check))
+  val interface: Interface = new InterfaceImpl((root, check, classified) => new VirtualFileSystem(Path.of(root), check, classifiedPaths = classified))
 
   import interface.*
 

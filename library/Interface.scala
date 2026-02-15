@@ -2,6 +2,22 @@ package library
 
 import language.experimental.captureChecking
 
+// ─── Classified ─────────────────────────────────────────────────────────────
+
+/** A wrapper that protects sensitive data from accidental disclosure.
+ *
+ *  `Classified[T]` ensures that:
+ *   - `toString` never reveals the underlying value
+ *   - `map` and `flatMap` only accept **pure** functions (`T -> B`),
+ *     preventing side-channel leaks through captured capabilities
+ *   - The underlying value is only accessible within library-internal code
+ */
+trait Classified[+T]:
+  /** Transform the classified value with a pure function. */
+  def map[B](op: T -> B): Classified[B]
+  /** Chain classified computations with a pure function. */
+  def flatMap[B](op: T -> Classified[B]): Classified[B]
+
 // ─── File System ────────────────────────────────────────────────────────────
 
 /** A handle to a single file or directory obtained from a [[FileSystem]].
@@ -42,6 +58,14 @@ abstract class FileEntry(tracked val origin: FileSystem):
   def children: List[FileEntry^{origin}]
   /** Recursively list all descendants (files and subdirectories). */
   def walk(): List[FileEntry^{origin}]
+  /** Whether this file is under a classified (protected) path. */
+  def isClassified: Boolean
+  /** Read a classified file, returning its content wrapped in [[Classified]].
+   *  Throws `SecurityException` if the file is not classified. */
+  def readClassified(): Classified[String]
+  /** Write classified content to a classified file.
+   *  Throws `SecurityException` if the file is not classified. */
+  def writeClassified(content: Classified[String]): Unit
 
 /** A capability that grants scoped access to a file-system subtree.
  *
@@ -212,6 +236,12 @@ trait Interface:
    *  }}} */
   def find(dir: String, glob: String)(using fs: FileSystem): List[String]
 
+  /** Read a classified file by path. Shorthand for `access(path).readClassified()`. */
+  def readClassified(path: String)(using fs: FileSystem): Classified[String]
+
+  /** Write classified content to a file by path. Shorthand for `access(path).writeClassified(content)`. */
+  def writeClassified(path: String, content: Classified[String])(using fs: FileSystem): Unit
+
   // ── Process execution ─────────────────────────────────────────────────
 
   /** Request a [[ProcessPermission]] capability for the given set of
@@ -281,3 +311,19 @@ trait Interface:
    *  @param data        request body
    *  @param contentType MIME type of the body (default `application/json`) */
   def httpPost(url: String, data: String, contentType: String = "application/json")(using net: Network): String
+
+  // ── Classified ─────────────────────────────────────────────────────
+  /** Create a [[Classified]] value wrapping `value`. */
+  def classify[T](value: T): Classified[T]
+
+  // ── LLM ─────────────────────────────────────────────────────────────
+
+  /** Send a message to the configured LLM and return its response.
+   *  Always available — no capability scope required.
+   *
+   *  Throws `RuntimeException` if no LLM is configured. */
+  def chat(message: String): String
+
+  /** Send a classified message to the configured LLM and return a classified response.
+   *  The underlying value is never exposed outside the [[Classified]] wrapper. */
+  def chat(message: Classified[String]): Classified[String]

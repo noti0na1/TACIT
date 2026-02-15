@@ -17,6 +17,12 @@ To enable execution logging:
 java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --record ./log
 ```
 
+To use a JSON config file:
+
+```bash
+java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --config config.json
+```
+
 ## MCP Client Configuration
 
 **Claude Desktop** (`~/.config/claude/claude_desktop_config.json`):
@@ -102,6 +108,24 @@ requestNetwork(Set("api.example.com")) {
 
 Capabilities cannot escape their scoped block — this is enforced at compile time by Scala 3's capture checker.
 
+### LLM
+
+A secondary LLM is available through the `chat` method — no capability scope required. Safety comes from the `Classified` type system: `chat(String): String` for regular data, `chat(Classified[String]): Classified[String]` for sensitive data.
+
+```scala
+// Regular chat
+val answer = chat("What is 2 + 2?")
+
+// Classified chat — input and output stay wrapped
+requestFileSystem("/secrets") {
+  val secret = readClassified("/secrets/key.txt")
+  val result = chat(secret.map(s => s"Summarize: $s"))
+  // result is Classified[String] — cannot be printed or leaked
+}
+```
+
+Configure via CLI flags (`--llm-base-url`, `--llm-api-key`, `--llm-model`) or a JSON config file (`--config`). Any OpenAI-compatible API is supported.
+
 ### Validation
 
 Code is checked against 40+ forbidden patterns before execution, covering:
@@ -115,9 +139,36 @@ Code is checked against 40+ forbidden patterns before execution, covering:
 - System control (`System.exit`, `System.setProperty`, `new Thread`)
 - Class loading (`ClassLoader`, `URLClassLoader`)
 
-## Code Recording
+## Configuration
 
-Pass `--record <dir>` to log every execution to disk, including the code and the full output.
+The server can be configured via CLI flags or a JSON config file.
+
+### CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `-r`/`--record <dir>` | Log every execution to disk |
+| `-s`/`--strict` | Block file ops (cat, ls, rm, etc.) through exec |
+| `--classified-paths <paths>` | Comma-separated classified (protected) paths |
+| `-c`/`--config <path>` | JSON config file (flags after `--config` override file values) |
+| `--llm-base-url <url>` | LLM API base URL |
+| `--llm-api-key <key>` | LLM API key |
+| `--llm-model <name>` | LLM model name |
+
+### JSON Config File
+
+```json
+{
+  "recordPath": "/tmp/recordings",
+  "strictMode": true,
+  "classifiedPaths": ["/home/user/secret"],
+  "llm": {
+    "baseUrl": "https://api.openai.com",
+    "apiKey": "sk-...",
+    "model": "gpt-4o-mini"
+  }
+}
+```
 
 ## Development
 
@@ -128,6 +179,7 @@ sbt test                       # Run all tests
 sbt "testOnly *McpServerSuite" # Run a single suite
 sbt run                        # Run the server locally
 sbt "run --record ./log"       # Run with logging enabled
+sbt "run --config config.json" # Run with JSON config
 sbt assembly                   # Build fat JAR
 ```
 

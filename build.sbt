@@ -1,5 +1,5 @@
 // val scala3Version = "3.8.1"
-val scala3Version = "3.8.2-RC1"
+val scala3Version = "3.8.2-RC3"
 
 lazy val lib = project
   .in(file("library"))
@@ -11,6 +11,7 @@ lazy val lib = project
     ),
     Compile / unmanagedSources / excludeFilter :=
       "*.test.scala" || "project.scala" || "README.md",
+    libraryDependencies += "com.openai" % "openai-java" % "4.21.0",
     scalacOptions ++= Seq(
       "-language:experimental.captureChecking",
       "-language:experimental.modularity",
@@ -36,6 +37,7 @@ lazy val root = project
       "-Yexplicit-nulls",
       "-Wunused:all",
       "-Wsafe-init",
+      "-language:experimental.modularity",
       // "-Wall",
     ),
 
@@ -65,8 +67,12 @@ lazy val root = project
     // Assembly settings for creating a fat JAR
     assembly / mainClass := Some("SafeExecMCP"),
     assembly / assemblyMergeStrategy := {
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case "module-info.class" => MergeStrategy.discard
+      case PathList("META-INF", "services", _*) => MergeStrategy.concat
+      case PathList("META-INF", "MANIFEST.MF")  => MergeStrategy.discard
+      case PathList("META-INF", x) if x.endsWith(".SF")
+        || x.endsWith(".DSA") || x.endsWith(".RSA") => MergeStrategy.discard
+      case PathList("META-INF", _*)              => MergeStrategy.first
+      case "module-info.class"                   => MergeStrategy.discard
       case x if x.endsWith(".tasty") => MergeStrategy.first
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value

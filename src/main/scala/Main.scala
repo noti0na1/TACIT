@@ -37,6 +37,9 @@ import Context.*
           case Some(dir) => s"Recording: ON -> $dir"
           case None      => "Recording: OFF"
         val strictStatus = if config.strictMode then "Strict:    ON (file ops blocked in exec)" else "Strict:    OFF"
+        val llmStatus = config.llmConfig match
+          case Some(cfg) => s"LLM:       ON -> ${cfg.model} @ ${cfg.baseUrl}"
+          case None      => "LLM:       OFF"
 
         System.err.println(
           s"""
@@ -47,6 +50,7 @@ import Context.*
             |║  Protocol:  Model Context Protocol (MCP)                         ║
             |║  $recordingStatus
             |║  $strictStatus
+            |║  $llmStatus
             |╚══════════════════════════════════════════════════════════════════╝
             |
             |Available tools: execute_scala, create_repl_session, execute_in_session,
