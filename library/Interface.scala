@@ -99,7 +99,7 @@ trait Interface:
    *    access("/home/user/project/src").children.foreach(f => println(f.name))
    *  }
    *  }}} */
-  def requestFileSystem[T](root: String)(op: FileSystem^ ?=> T): T
+  def requestFileSystem[T](root: String)(op: FileSystem^ ?=> T)(using IOCapability): T
 
   /** Get a [[FileEntry]] handle for `path`. */
   def access(path: String)(using fs: FileSystem): FileEntry^{fs}
@@ -153,7 +153,7 @@ trait Interface:
    *    execOutput("python", List("script.py"))
    *  }
    *  }}} */
-  def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T): T
+  def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T)(using IOCapability): T
 
   /** Run `command` with `args`. Returns exit code, stdout, and stderr.
    *  Throws `RuntimeException` on timeout. */
@@ -181,7 +181,7 @@ trait Interface:
    *                        """{"key": "value"}""")
    *  }
    *  }}} */
-  def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T): T
+  def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T)(using IOCapability): T
 
   /** HTTP GET. Returns the response body. Host must be in the allowed set. */
   def httpGet(url: String)(using net: Network): String

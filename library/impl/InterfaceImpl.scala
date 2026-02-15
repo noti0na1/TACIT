@@ -24,7 +24,7 @@ class InterfaceImpl(
 
   def printf(fmt: String, args: Any*)(using IOCapability): Unit = scala.Predef.printf(fmt, args*)
 
-  def requestFileSystem[T](root: String)(op: FileSystem^ ?=> T): T =
+  def requestFileSystem[T](root: String)(op: FileSystem^ ?=> T)(using IOCapability): T =
     val rootPath = Path.of(root).toAbsolutePath.normalize
     val relevantClassified = classifiedPaths
       .map(_.toAbsolutePath.normalize)
@@ -32,11 +32,11 @@ class InterfaceImpl(
     val fs = createFS(root, _ => true, relevantClassified)
     op(using fs)
 
-  def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T): T =
+  def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T)(using IOCapability): T =
     val perm = new ProcessPermission(commands, strictMode)
     op(using perm)
 
-  def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T): T =
+  def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T)(using IOCapability): T =
     val net = new Network(hosts)
     op(using net)
 
