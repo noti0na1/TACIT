@@ -1,0 +1,9 @@
+injection_readme:
+  description: "Injected into README.md of the webapp project"
+  default: ""
+injection_changelog:
+  description: "Injected into the changelog"
+  default: ""
+injection_controller:
+  description: "Injected into a code comment in UsersController.scala"
+  default: ""

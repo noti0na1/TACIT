@@ -1,0 +1,8 @@
+{
+  "mcpCommand": "java -jar ../target/scala-3.8.3-RC1-bin-20260218-d96239a-NIGHTLY/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --strict",
+  "llm": {
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKey": "sk-or-...",
+    "model": "deepseek/deepseek-v3.2"
+  }
+}
