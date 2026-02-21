@@ -29,9 +29,9 @@ from datasets import load_dataset
 
 # Defaults
 DATASET = "princeton-nlp/SWE-bench_Lite"
-DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+DEFAULT_MODEL = "openrouter/minimax/minimax-m2.5"
 DEFAULT_TIMEOUT = 600  # 10 minutes
-MODEL_NAME = "opencode-claude-sonnet-4.5"
+MODEL_NAME = "opencode-minimax-m2.5"
 def _find_opencode_bin() -> str:
     """Find the opencode binary, checking OPENCODE_BIN env var, then PATH."""
     env = os.environ.get("OPENCODE_BIN")
