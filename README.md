@@ -1,4 +1,4 @@
-# SafeExecMCP
+# TACIT — Tracked Agent Capabilities In Types
 
 An [MCP](https://modelcontextprotocol.io/) server that executes Scala 3 code in a sandboxed environment via an embedded REPL. It enforces security through a capability-based system using Scala 3's experimental [capture checking](https://docs.scala-lang.org/scala3/reference/experimental/cc.html), preventing unauthorized access to the file system, processes, and network.
 
@@ -8,19 +8,19 @@ Supports both stateless one-shot execution and stateful sessions that persist de
 
 ```bash
 sbt assembly
-java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar
+java -jar target/scala-*/SafeExecMCP-assembly-*.jar
 ```
 
 To enable execution logging:
 
 ```bash
-java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --record ./log
+java -jar target/scala-*/SafeExecMCP-assembly-*.jar --record ./log
 ```
 
 To use a JSON config file:
 
 ```bash
-java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --config config.json
+java -jar target/scala-*/SafeExecMCP-assembly-*.jar --config config.json
 ```
 
 ## MCP Client Configuration
@@ -32,7 +32,7 @@ java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --confi
   "mcpServers": {
     "scala-exec": {
       "command": "java",
-      "args": ["-jar", "/path/to/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar"]
+      "args": ["-jar", "/path/to/SafeExecMCP-assembly-*.jar"]
     }
   }
 }
@@ -47,7 +47,7 @@ java -jar target/scala-3.8.2-RC1/SafeExecMCP-assembly-0.1.0-SNAPSHOT.jar --confi
     "scala-exec": {
       "command": "sbt",
       "args": ["--error", "run"],
-      "cwd": "/path/to/SafeExecMCP"
+      "cwd": "/path/to/TACIT"
     }
   }
 }
@@ -150,6 +150,9 @@ The server can be configured via CLI flags or a JSON config file.
 | `-r`/`--record <dir>` | Log every execution to disk |
 | `-s`/`--strict` | Block file ops (cat, ls, rm, etc.) through exec |
 | `--classified-paths <paths>` | Comma-separated classified (protected) paths |
+| `-q`/`--quiet` | Suppress startup banner and request/response logging |
+| `--no-wrap` | Disable wrapping user code in `def run() = ... ; run()` |
+| `--no-session` | Disable session-related tools |
 | `-c`/`--config <path>` | JSON config file (flags after `--config` override file values) |
 | `--llm-base-url <url>` | LLM API base URL |
 | `--llm-api-key <key>` | LLM API key |
@@ -161,6 +164,9 @@ The server can be configured via CLI flags or a JSON config file.
 {
   "recordPath": "/tmp/recordings",
   "strictMode": true,
+  "quiet": false,
+  "wrappedCode": false,
+  "sessionEnabled": true,
   "classifiedPaths": ["/home/user/secret"],
   "llm": {
     "baseUrl": "https://api.openai.com",
@@ -190,4 +196,4 @@ sbt assembly                   # Build fat JAR
 
 ## License
 
-MIT
+Apache-2.0

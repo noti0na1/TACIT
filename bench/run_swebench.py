@@ -12,6 +12,7 @@ Usage:
     python run_swebench.py --resume                         # Skip completed instances
     python run_swebench.py --timeout 900                    # 15-minute timeout
     python run_swebench.py -j 4                             # Run 4 instances in parallel
+    python run_swebench.py --mode mcp_only                  # Use MCP only, no built-in tools
 """
 
 import argparse
@@ -29,9 +30,11 @@ from datasets import load_dataset
 
 # Defaults
 DATASET = "princeton-nlp/SWE-bench_Lite"
-DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
-DEFAULT_TIMEOUT = 600  # 10 minutes
-MODEL_NAME = "opencode-claude-sonnet-4.5"
+# DEFAULT_MODEL = "openrouter/anthropic/claude-sonnet-4.5"
+DEFAULT_MODEL = "openrouter/minimax/minimax-m2.5"
+DEFAULT_TIMEOUT = 900  # 15 minutes
+# MODEL_NAME = "opencode-claude-sonnet-4.5"
+MODEL_NAME = "opencode-minimax-m2.5"
 OPENCODE_BIN = os.environ.get(
     "OPENCODE_BIN",
     os.path.expanduser("~/.opencode/bin/opencode"),
