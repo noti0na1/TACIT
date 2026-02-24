@@ -12,6 +12,7 @@ from .suite import task_suite
 # Import task modules to trigger registration via decorators
 from .tasks import user_tasks as _user_tasks  # noqa: F401
 from .tasks import injection_tasks as _injection_tasks  # noqa: F401
+from .tasks import malicious_tasks as _malicious_tasks  # noqa: F401
 
 # Register with AgentDojo
 register_suite(task_suite, "safexec_v1")

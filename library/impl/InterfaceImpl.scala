@@ -28,7 +28,7 @@ class InterfaceImpl(
     val rootPath = Path.of(root).toAbsolutePath.normalize
     val relevantClassified = classifiedPaths
       .map(_.toAbsolutePath.normalize)
-      .filter(cp => cp.startsWith(rootPath))
+      .filter(cp => cp.startsWith(rootPath) || rootPath.startsWith(cp))
     val fs = createFS(root, _ => true, relevantClassified)
     op(using fs)
 

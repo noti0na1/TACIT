@@ -34,6 +34,8 @@ def _apply_injection(file_path: Path, placeholder: str, value: str) -> None:
 def setup_run(
     environment: SafeExecEnvironment,
     mcp_command: list[str] | None = None,
+    classified: bool = True,
+    record_dir: Path | None = None,
 ) -> Path:
     """Set up a benchmark run: copy template, apply injections, start MCP server.
 
@@ -41,6 +43,8 @@ def setup_run(
         environment: The environment with injection values.
         mcp_command: Command to start the MCP server (e.g. ["java", "-jar", "..."]).
             Falls back to auto-discovery if not provided.
+        classified: If True (default), pass --classified-paths to protect secrets.
+        record_dir: Directory for MCP execution logs. Falls back to ``bench/log``.
 
     Returns the temporary directory (caller should clean up via teardown_run).
     The MCP server is started with CWD = data directory so that relative paths
@@ -71,10 +75,12 @@ def setup_run(
 
     # 3. Build the full server command with per-run flags
     cmd = list(mcp_command or _default_mcp_command())
-    cmd.extend(["--classified-paths", str((data_dir / "secrets").resolve())])
-    log_dir = _BENCH_DIR / "log"
-    log_dir.mkdir(exist_ok=True)
+    if classified:
+        cmd.extend(["--classified-paths", str((data_dir / "secrets").resolve())])
+    log_dir = record_dir or (_BENCH_DIR / "log")
+    log_dir.mkdir(parents=True, exist_ok=True)
     cmd.extend(["--record", str(log_dir)])
+    cmd.extend(["-q", "--strict"]) 
 
     # 4. Start MCP server with CWD = data directory
     client = McpClient(cmd, cwd=data_dir)

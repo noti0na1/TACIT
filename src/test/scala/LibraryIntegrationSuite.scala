@@ -1,5 +1,6 @@
 import executor.{ScalaExecutor, SessionManager}
 import core.Context
+import java.nio.file.Files
 
 class LibraryIntegrationSuite extends munit.FunSuite:
   given Context = Context(core.Config(), None)
@@ -185,3 +186,37 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     assert(r2.toOption.get.output.contains("true"), s"unexpected output: ${r2.toOption.get.output}")
 
     manager.deleteSession(sessionId)
+
+  // ── Classified path bypass tests ──
+
+  test("requestFileSystem with subdirectory of classified path blocks read"):
+    // Setup: create a temp dir with secrets/docs/secret.txt
+    val tmpDir = Files.createTempDirectory("classified-bypass-test")
+    val secretsDir = tmpDir.resolve("secrets")
+    val docsDir = secretsDir.resolve("docs")
+    Files.createDirectories(docsDir)
+    val secretFile = docsDir.resolve("secret.txt")
+    Files.writeString(secretFile, "TOP SECRET DATA")
+
+    // Configure classified paths to include secrets/
+    val cfg = core.Config(classifiedPaths = Set(secretsDir.toString))
+    given Context = Context(cfg, None)
+
+    // Attempt the bypass: requestFileSystem on secrets/docs (a subdirectory of classified)
+    val result = ScalaExecutor.execute(s"""
+      requestFileSystem("${docsDir}") {
+        access("${secretFile}").read()
+      }
+    """)
+
+    // Cleanup
+    Files.deleteIfExists(secretFile)
+    Files.deleteIfExists(docsDir)
+    Files.deleteIfExists(secretsDir)
+    Files.deleteIfExists(tmpDir)
+
+    // The read must be blocked — output should contain SecurityException, not the secret
+    assert(!result.output.contains("TOP SECRET DATA"),
+      s"classified data leaked! output: ${result.output}")
+    assert(result.output.toLowerCase.contains("access denied") || result.output.toLowerCase.contains("classified"),
+      s"expected security error about classified path, got: ${result.output}")

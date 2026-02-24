@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from agentdojo.agent_pipeline.agent_pipeline import AgentPipeline
 from agentdojo.agent_pipeline.errors import AbortAgentError
@@ -24,6 +25,8 @@ def run_task(
     attack_payload: str | None = None,
     mcp_command: list[str] | None = None,
     verbose: bool = False,
+    classified: bool = True,
+    record_dir: Path | None = None,
 ) -> dict:
     """Run a single user task with full MCP server lifecycle management.
 
@@ -34,10 +37,13 @@ def run_task(
         attack_payload: Optional custom injection payload (set on all vectors).
         mcp_command: Command to start the MCP server (e.g. ["java", "-jar", "..."]).
         verbose: Print debug info.
+        classified: If True (default), pass --classified-paths to protect secrets.
+        record_dir: Directory for MCP execution logs.
 
     Returns:
         Dict with keys: ``user_task_id``, ``utility``, ``security``,
-        ``model_output``, ``injection_task_id``, ``messages``, ``error``.
+        ``model_output``, ``injection_task_id``, ``messages``, ``error``,
+        ``classified``.
     """
     suite = task_suite
     user_task = suite.get_user_task_by_id(user_task_id)
@@ -62,7 +68,7 @@ def run_task(
     env = suite.load_and_inject_default_environment(injections)
 
     # Start MCP server (copies template, applies injections to files on disk)
-    tmp_dir = setup_run(env, mcp_command=mcp_command)
+    tmp_dir = setup_run(env, mcp_command=mcp_command, classified=classified, record_dir=record_dir)
     try:
         pre_env = env.model_copy(deep=True)
         runtime = FunctionsRuntime(suite.tools)
@@ -108,6 +114,10 @@ def run_task(
                     security = False
                     break
 
+        # Also check user task's own security method (for malicious tasks)
+        if security and hasattr(user_task, 'security'):
+            security = user_task.security(model_output, pre_env, post_env)
+
         return {
             "user_task_id": user_task_id,
             "injection_task_id": injection_task_id,
@@ -116,6 +126,7 @@ def run_task(
             "model_output": model_output,
             "messages": list(messages),
             "error": None,
+            "classified": classified,
         }
 
     except Exception as exc:
@@ -127,6 +138,7 @@ def run_task(
             "model_output": "",
             "messages": [],
             "error": str(exc),
+            "classified": classified,
         }
 
     finally:
