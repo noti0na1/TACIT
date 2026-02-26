@@ -1,7 +1,8 @@
-package tacit.core
+package tacit
+package core
 
 import scopt.OParser
-import tacit.library.LlmConfig
+import library.LlmConfig
 
 case class Config(
   recordPath: Option[String] = None,

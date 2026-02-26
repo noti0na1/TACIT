@@ -215,7 +215,7 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     Files.deleteIfExists(secretsDir)
     Files.deleteIfExists(tmpDir)
 
-    // The read must be blocked — output should contain SecurityException, not the secret
+    // The read must be blocked: output should contain SecurityException, not the secret
     assert(!result.output.contains("TOP SECRET DATA"),
       s"classified data leaked! output: ${result.output}")
     assert(result.output.toLowerCase.contains("access denied") || result.output.toLowerCase.contains("classified"),

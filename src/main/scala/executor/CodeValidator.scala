@@ -58,7 +58,7 @@ object CodeValidator:
     ForbiddenPattern("jvm-sun", raw"\bsun\.\w+".r, "sun.* access is forbidden"),
     ForbiddenPattern("jvm-com-sun", raw"com\.sun\.\w+".r, "com.sun.* access is forbidden"),
 
-    // IO bypass — prevent circumventing shadowed println/print
+    // IO bypass, prevent circumventing shadowed println/print
     ForbiddenPattern("io-system-out", raw"System\.out\b".r, "System.out is forbidden; use println (which requires IOCapability)"),
     ForbiddenPattern("io-system-err", raw"System\.err\b".r, "System.err is forbidden; use println (which requires IOCapability)"),
     ForbiddenPattern("io-console", raw"\bConsole\b".r, "scala.Console is forbidden; use println (which requires IOCapability)"),
@@ -125,7 +125,7 @@ object CodeValidator:
             sb.append(' ')
             i += 1
       else if i + 1 < len && code.charAt(i) == '/' && code.charAt(i + 1) == '/' then
-        // Line comment — but check for //> using directive first
+        // Line comment, but check for //> using directive first
         // We still need to strip the comment content, the pattern matching
         // runs against the stripped version. The directive pattern won't match
         // after stripping. So we handle directives specially:

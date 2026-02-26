@@ -13,7 +13,7 @@ object Tools:
   val all: List[Tool] = List(
     Tool(
       name = "execute_scala",
-      description = Some("Execute a Scala code snippet and return the output. This is stateless - each execution is independent. The library API is pre-loaded: use requestFileSystem(root){ ... }, access(path), grep/grepRecursive/find for files; requestExecPermission(cmds){ exec(...) } for processes; requestNetwork(hosts){ httpGet/httpPost(...) } for HTTP."),
+      description = Some("Execute a Scala code snippet and return the output. This is stateless, each execution is independent. The library API is pre-loaded, and all functions defined in `Interface` are available."),
       inputSchema = Json.obj(
         "type" -> "object".asJson,
         "properties" -> Json.obj(
@@ -49,7 +49,7 @@ object Tools:
     ),
     Tool(
       name = "execute_in_session",
-      description = Some("Execute Scala code in an existing REPL session. The session maintains state between executions. The library API is pre-loaded: use requestFileSystem(root){ ... }, access(path), grep/grepRecursive/find for files; requestExecPermission(cmds){ exec(...) } for processes; requestNetwork(hosts){ httpGet/httpPost(...) } for HTTP."),
+      description = Some("Execute Scala code in an existing REPL session. The session maintains state between executions. The library API is pre-loaded, and all functions defined in `Interface` are available."),
       inputSchema = Json.obj(
         "type" -> "object".asJson,
         "properties" -> Json.obj(

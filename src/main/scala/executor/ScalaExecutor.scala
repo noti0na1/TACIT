@@ -1,11 +1,12 @@
-package tacit.executor
+package tacit
+package executor
 
 import scala.collection.mutable
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.UUID
 import dotty.tools.repl.{ReplDriver, State}
 import java.nio.charset.StandardCharsets
-import tacit.core.{Config, Context}
+import core.{Config, Context}
 import Context.*
 
 /** Result of code execution */
@@ -27,7 +28,7 @@ object ScalaExecutor:
   private[executor] lazy val replClasspathArgs: Array[String] =
     val paths = mutable.LinkedHashSet[String]()
 
-    // java.class.path — covers sbt run, java -cp, etc.
+    // java.class.path: covers sbt run, java -cp, etc.
     Option(System.getProperty("java.class.path")).foreach { cp =>
       paths ++= cp.split(java.io.File.pathSeparator).filter(_.nonEmpty)
     }
@@ -35,7 +36,7 @@ object ScalaExecutor:
     // Locate the Scala standard library via a loaded class.
     // This covers cases where java.class.path doesn't list it
     // (fat JARs, app servers, custom launchers).
-    // Only the stdlib is included — compiler/REPL internals are
+    // Only the stdlib is included: compiler/REPL internals are
     // intentionally kept off the executed code's classpath.
     val markerClasses: List[Class[?]] = List(
       classOf[scala.Unit],                    // scala-library

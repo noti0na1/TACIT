@@ -1,10 +1,10 @@
 package tacit
 
-import tacit.mcp.*
 import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import tacit.mcp.*
 import tacit.core.Config
 import tacit.core.*
 import Context.*
@@ -48,44 +48,15 @@ import Context.*
 
         System.err.println(
           s"""
-            |╔══════════════════════════════════════════════════════════════════╗
-            |║                     SafeExecMCP Server                           ║
-            |╠══════════════════════════════════════════════════════════════════╣
-            |║  Transport: stdio (JSON-RPC 2.0)                                 ║
-            |║  Protocol:  Model Context Protocol (MCP)                         ║
-            |║  $recordingStatus
-            |║  $strictStatus
-            |║  $sessionStatus
-            |║  $llmStatus
-            |╚══════════════════════════════════════════════════════════════════╝
-            |
-            |Available tools: execute_scala, create_repl_session, execute_in_session,
-            |                 delete_repl_session, list_sessions
-            |
-            |┌─ Claude Desktop configuration (~/.config/claude/claude_desktop_config.json):
-            |│
-            |│  {
-            |│    "mcpServers": {
-            |│      "scala-exec": {
-            |│        "command": "java",
-            |│        "args": ["-jar", "$jarPath"]
-            |│      }
-            |│    }
-            |│  }
-            |│
-            |└─ Or using sbt:
-            |│
-            |│  {
-            |│    "mcpServers": {
-            |│      "scala-exec": {
-            |│        "command": "sbt",
-            |│        "args": ["--error", "run"],
-            |│        "cwd": "$cwd"
-            |│      }
-            |│    }
-            |│  }
-            |
-            |Server ready. Waiting for JSON-RPC requests on stdin...
+            | SafeExecMCP Server
+            | Transport: stdio (JSON-RPC 2.0)                                 
+            | Protocol:  Model Context Protocol (MCP)                         
+            | $recordingStatus
+            | $strictStatus
+            | $sessionStatus
+            | $llmStatus
+            | JAR:       $jarPath
+            | CWD:       $cwd
             |""".stripMargin)
 
       if !config.quiet then printStartupBanner()

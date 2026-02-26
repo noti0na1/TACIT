@@ -60,11 +60,11 @@ java -jar target/scala-*/SafeExecMCP-assembly-*.jar --config config.json
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `execute_scala` | `code` | Execute a Scala snippet in a fresh REPL (stateless) |
-| `create_repl_session` | — | Create a persistent REPL session, returns `session_id` |
+| `create_repl_session` | - | Create a persistent REPL session, returns `session_id` |
 | `execute_in_session` | `session_id`, `code` | Execute code in an existing session (stateful) |
-| `list_sessions` | — | List active session IDs |
+| `list_sessions` | - | List active session IDs |
 | `delete_repl_session` | `session_id` | Delete a session |
-| `show_interface` | — | Show the full capability API reference |
+| `show_interface` | - | Show the full capability API reference |
 
 ### Example: Stateful Session
 
@@ -84,7 +84,7 @@ All user code is validated before execution. Direct use of `java.io`, `java.nio`
 The API exposes three capability request methods, each scoping access to a block:
 
 ```scala
-// File system — scoped to a root directory
+// File system: scoped to a root directory
 requestFileSystem("/tmp/work") {
   val f = access("data.txt")
   f.write("hello")
@@ -93,34 +93,34 @@ requestFileSystem("/tmp/work") {
   find(".", "*.txt")
 }
 
-// Process execution — scoped to an allowlist of commands
+// Process execution: scoped to an allowlist of commands
 requestExecPermission(Set("ls", "cat")) {
   val result = exec("ls", List("-la"))
   println(result.stdout)
 }
 
-// Network — scoped to an allowlist of hosts
+// Network: scoped to an allowlist of hosts
 requestNetwork(Set("api.example.com")) {
   val body = httpGet("https://api.example.com/data")
   httpPost("https://api.example.com/submit", """{"key":"value"}""")
 }
 ```
 
-Capabilities cannot escape their scoped block — this is enforced at compile time by Scala 3's capture checker.
+Capabilities cannot escape their scoped block: this is enforced at compile time by Scala 3's capture checker.
 
 ### LLM
 
-A secondary LLM is available through the `chat` method — no capability scope required. Safety comes from the `Classified` type system: `chat(String): String` for regular data, `chat(Classified[String]): Classified[String]` for sensitive data.
+A secondary LLM is available through the `chat` method, no capability scope required. Safety comes from the `Classified` type system: `chat(String): String` for regular data, `chat(Classified[String]): Classified[String]` for sensitive data.
 
 ```scala
 // Regular chat
 val answer = chat("What is 2 + 2?")
 
-// Classified chat — input and output stay wrapped
+// Classified chat: input and output stay wrapped
 requestFileSystem("/secrets") {
   val secret = readClassified("/secrets/key.txt")
   val result = chat(secret.map(s => s"Summarize: $s"))
-  // result is Classified[String] — cannot be printed or leaked
+  // result is Classified[String], cannot be printed or leaked
 }
 ```
 

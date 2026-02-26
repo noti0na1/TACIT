@@ -35,7 +35,7 @@ abstract class FileEntry(tracked val origin: FileSystem):
   def walk(): List[FileEntry^{this}]
   /** Whether this file is under a classified (protected) path. */
   def isClassified: Boolean
-  /** Read a classified file, returning its content wrapped in [[Classified]].
+  /** Read a classified file, returning its content wrapped in `Classified`.
    *  Throws `SecurityException` if the file is not under a classified path. */
   def readClassified(): Classified[String]
   /** Write classified content to a classified file.
@@ -85,7 +85,7 @@ class IOCapability private extends caps.SharedCapability
  *
  *  == Example: basic file operations (write, read, list) ==
  *
- *  {{{
+ *  ```
  *  requestFileSystem("/tmp/demo") {
  *    // Access a file or directory via `access()`
  *    val f = access("/tmp/demo/hello.txt")
@@ -112,79 +112,77 @@ class IOCapability private extends caps.SharedCapability
  *      println(s"  ${e.path} (dir=${e.isDirectory}, size=${e.size})")
  *    }
  *  }
- *  }}}
+ *  ```
  */
 trait Interface:
 
   // ── File System ─────────────────────────────────────────────────────
 
-  /** Request a [[FileSystem]] scoped to the subtree under `root`.
+  /** Request a `FileSystem` scoped to the subtree under `root`.
    *  Paths outside `root` throw `SecurityException`.
    *
-   *  {{{
+   *  ```
    *  requestFileSystem("/home/user/project") {
    *    val content = access("/home/user/project/README.md").read()
    *    println(content)
-   *
    *    access("/home/user/project/out/result.txt").write("done")
-   *
    *    access("/home/user/project/src").children.foreach(f => println(f.name))
    *  }
-   *  }}} */
+   *  ``` */
   def requestFileSystem[T](root: String)(op: FileSystem^ ?=> T)(using IOCapability): T
 
-  /** Get a [[FileEntry]] handle for `path`. */
+  /** Get a `FileEntry` handle for `path`. */
   def access(path: String)(using fs: FileSystem): FileEntry^{fs}
 
   /** Search a single file for lines matching `pattern` (regex).
    *
-   *  {{{
+   *  ```
    *  val matches = grep("/project/Main.scala", "TODO")
    *  matches.foreach(m => println(s"${m.lineNumber}: ${m.line}"))
-   *  }}} */
+   *  ``` */
   def grep(path: String, pattern: String)(using FileSystem): List[GrepMatch]
 
   /** Recursively search files under `dir` matching `glob` for `pattern` (regex).
    *
-   *  {{{
+   *  ```
    *  val hits = grepRecursive("/project/src", "deprecated", "*.scala")
    *  hits.foreach(m => println(s"${m.file}:${m.lineNumber}: ${m.line}"))
-   *  }}} */
+   *  ``` */
   def grepRecursive(dir: String, pattern: String, glob: String = "*")(using FileSystem): List[GrepMatch]
 
   /** Find all files under `dir` matching `glob`. Returns absolute paths.
    *
-   *  {{{
+   *  ```
    *  val files = find("/project/src", "*.scala")
-   *  }}} */
+   *  ``` */
   def find(dir: String, glob: String)(using FileSystem): List[String]
 
   /** Read a classified file. Throws `SecurityException` if the path is not classified.
    *
-   *  {{{
+   *  ```
    *  val secret: Classified[String] = readClassified("/data/secrets/key.txt")
    *  val processed = secret.map(_.trim.toUpperCase)  // pure transform OK
-   *  println(processed)  // prints "Classified(****)" — content protected
-   *  }}} */
+   *  println(processed)  // prints "Classified(****)", content protected
+   *  ``` */
   def readClassified(path: String)(using FileSystem): Classified[String]
 
   /** Write classified content to a classified file.
    *
-   *  {{{
+   *  ```
    *  writeClassified("/data/secrets/upper.txt", processed)
-   *  }}} */
+   *  ``` */
   def writeClassified(path: String, content: Classified[String])(using FileSystem): Unit
 
   // ── Process Execution ───────────────────────────────────────────────
 
-  /** Request a [[ProcessPermission]] for the given command names.
+  /** Request a `ProcessPermission` for the given command names.
    *
-   *  {{{
+   *  ```
    *  requestExecPermission(Set("pip", "python")) {
    *    exec("pip", List("install", "."))
    *    execOutput("python", List("script.py"))
    *  }
-   *  }}} */
+   *  ``` */
   def requestExecPermission[T](commands: Set[String])(op: ProcessPermission^ ?=> T)(using IOCapability): T
 
   /** Run `command` with `args`. Returns exit code, stdout, and stderr.
@@ -204,15 +202,15 @@ trait Interface:
 
   // ── Network ─────────────────────────────────────────────────────────
 
-  /** Request a [[Network]] capability for the given host names.
+  /** Request a `Network` capability for the given host names.
    *
-   *  {{{
+   *  ```
    *  requestNetwork(Set("api.example.com")) {
    *    val body = httpGet("https://api.example.com/v1/status")
    *    val resp = httpPost("https://api.example.com/v1/data",
    *                        """{"key": "value"}""")
    *  }
-   *  }}} */
+   *  ``` */
   def requestNetwork[T](hosts: Set[String])(op: Network^ ?=> T)(using IOCapability): T
 
   /** HTTP GET. Returns the response body. Host must be in the allowed set. */
@@ -230,7 +228,7 @@ trait Interface:
 
   // ── Classified ──────────────────────────────────────────────────────
 
-  /** Wrap a value in [[Classified]] to protect it from disclosure. */
+  /** Wrap a value in `Classified` to protect it from disclosure. */
   def classify[T](value: T): Classified[T]
 
   // ── LLM ─────────────────────────────────────────────────────────────
@@ -238,15 +236,15 @@ trait Interface:
   /** Send a message to the configured LLM. No capability scope required.
    *  Throws `RuntimeException` if no LLM is configured.
    *
-   *  {{{
+   *  ```
    *  val answer = chat("What is the capital of Switzerland?")
-   *  }}} */
+   *  ``` */
   def chat(message: String): String
 
   /** Send a classified message. Returns a classified response.
    *
-   *  {{{
+   *  ```
    *  val secret = readClassified("/data/secrets/question.txt")
    *  val summary: Classified[String] = chat(secret.map(q => s"Summarize the following: $q"))
-   *  }}} */
+   *  ``` */
   def chat(message: Classified[String]): Classified[String]
