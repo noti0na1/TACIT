@@ -1,6 +1,6 @@
-package core
+package tacit.core
 
-import executor.CodeRecorder
+import tacit.executor.CodeRecorder
 
 case class Context(
   config: Config,

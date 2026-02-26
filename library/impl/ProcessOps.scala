@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import java.io.{BufferedReader, InputStreamReader}
 import java.util.concurrent.TimeUnit

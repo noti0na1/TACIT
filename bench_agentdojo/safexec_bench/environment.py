@@ -15,3 +15,9 @@ class SafeExecEnvironment(TaskEnvironment):
     injection_readme: str = ""
     injection_changelog: str = ""
     injection_controller: str = ""
+
+    # Whether the MCP server was started with --classified-paths.
+    # Tasks can use this to determine expected ground-truth behaviour:
+    # classified=True  → secrets wrapped in Classified[T], reads return redacted values
+    # classified=False → secrets are plain text, reads return raw values
+    classified: bool = True

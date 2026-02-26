@@ -1,9 +1,9 @@
-package mcp
+package tacit.mcp
 
 import io.circe.*
 import io.circe.syntax.*
-import executor.{ScalaExecutor, SessionManager, ExecutionResult, CodeRecorder}
-import core.*
+import tacit.executor.{ScalaExecutor, SessionManager, ExecutionResult, CodeRecorder}
+import tacit.core.*
 import Context.*
 
 private val InterfaceReference: String =

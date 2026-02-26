@@ -1,8 +1,8 @@
-import executor.SessionManager
-import core.Context
+import tacit.executor.SessionManager
+import tacit.core.{Context, Config}
 
 class SessionManagerSuite extends munit.FunSuite:
-  given Context = Context(core.Config(), None)
+  given Context = Context(Config(), None)
 
   test("create and list sessions"):
     val manager = new SessionManager

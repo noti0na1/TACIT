@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import language.experimental.captureChecking
 

@@ -1,10 +1,12 @@
-import mcp.*
+package tacit
+
+import tacit.mcp.*
 import io.circe.*
 import io.circe.parser.*
 import io.circe.syntax.*
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
-import core.Config
-import core.*
+import tacit.core.Config
+import tacit.core.*
 import Context.*
 
 /** SafeExecMCP - A Model Context Protocol server for safe Scala code execution */

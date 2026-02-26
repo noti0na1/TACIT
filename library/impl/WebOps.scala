@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import java.net.{URI, HttpURLConnection}
 import language.experimental.captureChecking

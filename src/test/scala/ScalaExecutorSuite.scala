@@ -1,8 +1,8 @@
-import executor.ScalaExecutor
-import core.Context
+import tacit.executor.ScalaExecutor
+import tacit.core.{Context, Config}
 
 class ScalaExecutorSuite extends munit.FunSuite:
-  given Context = Context(core.Config(), None)
+  given Context = Context(Config(), None)
 
   test("execute simple expression"):
     val result = ScalaExecutor.execute("1 + 1")

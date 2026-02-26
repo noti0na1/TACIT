@@ -1,11 +1,11 @@
-package executor
+package tacit.executor
 
 import scala.collection.mutable
 import java.io.{ByteArrayOutputStream, PrintStream}
 import java.util.UUID
 import dotty.tools.repl.{ReplDriver, State}
 import java.nio.charset.StandardCharsets
-import core.{Config, Context}
+import tacit.core.{Config, Context}
 import Context.*
 
 /** Result of code execution */
@@ -71,7 +71,7 @@ object ScalaExecutor:
     val llmConfigExpr = cfg.llmConfig match
       case None => "None"
       case Some(llm) => s"""Some(LlmConfig("${esc(llm.baseUrl)}", "${esc(llm.apiKey)}", "${esc(llm.model)}"))"""
-    s"""|import library.*
+    s"""|import tacit.library.*
         |val api: Interface = new InterfaceImpl(
         |  (root, check, classified) => new RealFileSystem(java.nio.file.Path.of(root), check, classified),
         |  ${cfg.strictMode},

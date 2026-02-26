@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 /** Validates commands against ProcessPermission rules.
  *

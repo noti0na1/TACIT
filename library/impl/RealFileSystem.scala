@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import java.nio.file.{Files, FileVisitResult, Path, Paths, SimpleFileVisitor}
 import java.nio.file.attribute.BasicFileAttributes

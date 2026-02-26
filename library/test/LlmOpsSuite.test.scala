@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 class LlmOpsSuite extends munit.FunSuite:
 

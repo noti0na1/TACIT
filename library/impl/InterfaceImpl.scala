@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import java.nio.file.Path
 import language.experimental.captureChecking

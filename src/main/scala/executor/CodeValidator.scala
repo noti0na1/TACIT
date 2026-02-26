@@ -1,4 +1,4 @@
-package executor
+package tacit.executor
 
 import scala.util.matching.Regex
 

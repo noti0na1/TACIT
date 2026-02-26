@@ -1,4 +1,4 @@
-import executor.{CodeRecorder, ExecutionResult}
+import tacit.executor.{CodeRecorder, ExecutionResult}
 import java.io.File
 import java.nio.file.Files
 

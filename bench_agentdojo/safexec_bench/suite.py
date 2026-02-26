@@ -1,6 +1,7 @@
 """Task suite definition and tool functions for SafeExecMCP benchmark."""
 
 import re
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -12,27 +13,29 @@ from .environment import SafeExecEnvironment
 from .mcp_client import McpClient
 
 # ---------------------------------------------------------------------------
-# Module-level MCP client — set before each benchmark run
+# Thread-local MCP client and data dir — each worker thread gets its own copy
 # ---------------------------------------------------------------------------
-_mcp_client: McpClient | None = None
-_data_dir: Path | None = None
+_local = threading.local()
 
 
 def get_data_dir() -> Path | None:
     """Get the current data directory (for use by injection task security checks)."""
-    return _data_dir
-
-
-def set_mcp_client(client: McpClient | None) -> None:
-    """Set the module-level MCP client."""
-    global _mcp_client
-    _mcp_client = client
+    return getattr(_local, "data_dir", None)
 
 
 def set_data_dir(path: Path | None) -> None:
-    """Set the module-level data directory."""
-    global _data_dir
-    _data_dir = path
+    """Set the thread-local data directory."""
+    _local.data_dir = path
+
+
+def get_mcp_client() -> McpClient | None:
+    """Get the current thread's MCP client."""
+    return getattr(_local, "mcp_client", None)
+
+
+def set_mcp_client(client: McpClient | None) -> None:
+    """Set the thread-local MCP client."""
+    _local.mcp_client = client
 
 
 # ---------------------------------------------------------------------------
@@ -50,18 +53,20 @@ def execute_scala(
 
     :param code: The Scala 3 code to execute. Call `show_interface()` first to see the full API reference.
     """
-    if _mcp_client is None:
+    client = get_mcp_client()
+    if client is None:
         raise RuntimeError("MCP server not started. Call setup_run() first.")
-    return _mcp_client.call_tool("execute_scala", {"code": code})
+    return client.call_tool("execute_scala", {"code": code})
 
 
 def show_interface(
     env: Annotated[SafeExecEnvironment, Depends(lambda e: e)],
 ) -> str:
     """Display the full capability API reference showing available methods for file system, process, network, and LLM access."""
-    if _mcp_client is None:
+    client = get_mcp_client()
+    if client is None:
         raise RuntimeError("MCP server not started. Call setup_run() first.")
-    return _mcp_client.call_tool("show_interface")
+    return client.call_tool("show_interface")
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +81,33 @@ task_suite = TaskSuite[SafeExecEnvironment](
     [make_function(tool) for tool in TOOLS],
     data_path=Path(__file__).resolve().parent / "data" / "suites" / "safexec",
 )
+
+
+# ---------------------------------------------------------------------------
+# Override load_and_inject_default_environment to bypass YAML roundtrip.
+#
+# AgentDojo's default implementation does str.format() into a YAML template
+# then yaml.safe_load(). Injection GOALs containing "---" (YAML document
+# separator) break PyYAML's scanner. Since our environment is simple (3
+# injection fields), we construct it directly.
+# ---------------------------------------------------------------------------
+_original_load_and_inject = task_suite.load_and_inject_default_environment
+
+
+def _safe_load_and_inject(injections: dict[str, str]) -> SafeExecEnvironment:
+    from agentdojo.task_suite.task_suite import validate_injections
+
+    defaults = task_suite.get_injection_vector_defaults()
+    validate_injections(injections, defaults)
+    merged = dict(defaults, **injections)
+    return SafeExecEnvironment(
+        injection_readme=merged.get("injection_readme", ""),
+        injection_changelog=merged.get("injection_changelog", ""),
+        injection_controller=merged.get("injection_controller", ""),
+    )
+
+
+task_suite.load_and_inject_default_environment = _safe_load_and_inject  # type: ignore[assignment]
 
 
 def register_malicious_task(

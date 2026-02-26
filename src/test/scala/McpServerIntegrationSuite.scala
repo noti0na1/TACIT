@@ -49,7 +49,7 @@ class McpServerIntegrationSuite extends munit.FunSuite:
     // Use the main class directly via Java to avoid sbt logging interference
     val classpath = System.getProperty("java.class.path")
     val processBuilder = new ProcessBuilder(
-      "java", "-cp", classpath, "SafeExecMCP"
+      "java", "-cp", classpath, "tacit.SafeExecMCP"
     )
     processBuilder.directory(new java.io.File(System.getProperty("user.dir")))
     processBuilder.redirectErrorStream(false)

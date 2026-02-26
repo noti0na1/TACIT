@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient

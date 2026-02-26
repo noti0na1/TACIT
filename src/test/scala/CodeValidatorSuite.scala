@@ -1,8 +1,8 @@
-import executor.{CodeValidator, ScalaExecutor, SessionManager}
-import core.Context
+import tacit.executor.{CodeValidator, ScalaExecutor, SessionManager, ValidationViolation}
+import tacit.core.{Context, Config}
 
 class CodeValidatorSuite extends munit.FunSuite:
-  given Context = Context(core.Config(), None)
+  given Context = Context(Config(), None)
 
   // ---- Rejection tests by category ----
 
@@ -312,7 +312,7 @@ class CodeValidatorSuite extends munit.FunSuite:
 
   test("formatErrors produces readable output"):
     val violations = List(
-      executor.ValidationViolation("file-io-java", "Direct java.io access is forbidden", 1, "import java.io.File")
+      ValidationViolation("file-io-java", "Direct java.io access is forbidden", 1, "import java.io.File")
     )
     val output = CodeValidator.formatErrors(violations)
     assert(output.contains("1 violation"))

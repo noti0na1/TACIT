@@ -1,4 +1,4 @@
-package library
+package tacit.library
 
 import java.io.{BufferedReader, StringReader}
 import java.nio.file.{Path, Paths}

@@ -1,9 +1,9 @@
-import executor.{ScalaExecutor, SessionManager}
-import core.Context
+import tacit.executor.{ScalaExecutor, SessionManager}
+import tacit.core.{Context, Config}
 import java.nio.file.Files
 
 class LibraryIntegrationSuite extends munit.FunSuite:
-  given Context = Context(core.Config(), None)
+  given Context = Context(Config(), None)
 
   /** Helper: assert that code fails to compile in the REPL with an error matching `pattern`. */
   private def assertCompileError(code: String, pattern: String)(using loc: munit.Location): Unit =
@@ -124,19 +124,19 @@ class LibraryIntegrationSuite extends munit.FunSuite:
   test("cannot use access without FileSystem capability"):
     assertCompileError(
       """access("/tmp")""",
-      "no given instance of type library.FileSystem"
+      "no given instance of type tacit.library.FileSystem"
     )
 
   test("cannot use exec without ProcessPermission capability"):
     assertCompileError(
       """exec("echo", List("hi"))""",
-      "no given instance of type library.ProcessPermission"
+      "no given instance of type tacit.library.ProcessPermission"
     )
 
   test("cannot use httpGet without Network capability"):
     assertCompileError(
       """httpGet("https://example.com")""",
-      "no given instance of type library.Network"
+      "no given instance of type tacit.library.Network"
     )
 
   test("println inside Classified.map is rejected by capture checker"):
@@ -199,7 +199,7 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     Files.writeString(secretFile, "TOP SECRET DATA")
 
     // Configure classified paths to include secrets/
-    val cfg = core.Config(classifiedPaths = Set(secretsDir.toString))
+    val cfg = Config(classifiedPaths = Set(secretsDir.toString))
     given Context = Context(cfg, None)
 
     // Attempt the bypass: requestFileSystem on secrets/docs (a subdirectory of classified)

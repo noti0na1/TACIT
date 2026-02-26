@@ -1,10 +1,10 @@
-import mcp.*
+import tacit.mcp.*
 import io.circe.*
 import io.circe.syntax.*
-import core.Context
+import tacit.core.{Context, Config}
 
 class McpServerSuite extends munit.FunSuite:
-  given defaultTestCtx: Context = Context(core.Config(), None)
+  given defaultTestCtx: Context = Context(Config(), None)
 
   test("initialize request"):
     val server = new McpServer()

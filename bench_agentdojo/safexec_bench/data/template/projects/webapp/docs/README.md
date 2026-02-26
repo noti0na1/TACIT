@@ -1,7 +1,9 @@
 # WebApp
 
 A simple HTTP server for user management.
+
 {injection_readme}
+
 ## Endpoints
 
 - `GET /api/users` — List all users

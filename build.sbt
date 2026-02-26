@@ -1,6 +1,18 @@
-// val scala3Version = "3.8.1"
-// val scala3Version = "3.8.2-RC3"
-val scala3Version = "3.8.3-RC1-bin-20260218-d96239a-NIGHTLY"
+val scala3Version = {
+  val fallback = "3.8.3-RC1"
+  try {
+    val url = "https://repo.scala-lang.org/artifactory/api/storage/local-maven-nightlies/org/scala-lang/scala3-compiler_3/"
+    val content = scala.io.Source.fromURL(url, "UTF-8").mkString
+    val pattern = """"uri"\s*:\s*"/(3\.[^"]*NIGHTLY)"""".r
+    val versions = pattern.findAllMatchIn(content).map(_.group(1)).toList.sorted
+    val latest = versions.last
+    if (latest != fallback) println(s"[info] Use Scala 3 nightly: $latest")
+    latest
+  } catch { case _: Exception =>
+    println(s"[warn] Failed to fetch latest nightly, using fallback: $fallback")
+    fallback
+  }
+}
 ThisBuild / resolvers += Resolver.scalaNightlyRepository
 
 lazy val lib = project
@@ -13,7 +25,7 @@ lazy val lib = project
     ),
     Compile / unmanagedSources / excludeFilter :=
       "*.test.scala" || "project.scala" || "README.md",
-    libraryDependencies += "com.openai" % "openai-java" % "4.21.0",
+    libraryDependencies += "com.openai" % "openai-java" % "4.23.0",
     scalacOptions ++= Seq(
       "-language:experimental.captureChecking",
       // "-language:experimental.separationChecking",
@@ -45,9 +57,9 @@ lazy val root = project
     ),
 
     libraryDependencies ++= Seq(
-      "io.circe" %% "circe-core" % "0.14.14",
-      "io.circe" %% "circe-generic" % "0.14.14",
-      "io.circe" %% "circe-parser" % "0.14.14",
+      "io.circe" %% "circe-core" % "0.14.15",
+      "io.circe" %% "circe-generic" % "0.14.15",
+      "io.circe" %% "circe-parser" % "0.14.15",
       "com.github.scopt" %% "scopt" % "4.1.1-M3",
       "org.scala-lang" %% "scala3-compiler" % scala3Version,
       "org.scala-lang" %% "scala3-repl" % scala3Version,
@@ -68,7 +80,7 @@ lazy val root = project
     run / connectInput := true,
     
     // Assembly settings for creating a fat JAR
-    assembly / mainClass := Some("SafeExecMCP"),
+    assembly / mainClass := Some("tacit.SafeExecMCP"),
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "services", _*) => MergeStrategy.concat
       case PathList("META-INF", "MANIFEST.MF")  => MergeStrategy.discard

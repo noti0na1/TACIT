@@ -1,4 +1,4 @@
-package mcp
+package tacit.mcp
 
 import io.circe.*
 import io.circe.syntax.*
