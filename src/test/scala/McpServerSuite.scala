@@ -4,7 +4,7 @@ import io.circe.syntax.*
 import tacit.core.{Context, Config}
 
 class McpServerSuite extends munit.FunSuite:
-  given defaultTestCtx: Context = Context(Config(), None)
+  given defaultTestCtx: Context = Context(Config(libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar"))), None)
 
   test("initialize request"):
     val server = new McpServer()

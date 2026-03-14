@@ -2,7 +2,7 @@ import tacit.executor.{CodeValidator, ScalaExecutor, SessionManager, ValidationV
 import tacit.core.{Context, Config}
 
 class CodeValidatorSuite extends munit.FunSuite:
-  given Context = Context(Config(), None)
+  given Context = Context(Config(libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar"))), None)
 
   // ---- Rejection tests by category ----
 

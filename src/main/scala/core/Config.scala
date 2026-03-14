@@ -2,7 +2,6 @@ package tacit
 package core
 
 import scopt.OParser
-import library.LlmConfig
 
 case class Config(
   recordPath: Option[String] = None,
@@ -12,6 +11,8 @@ case class Config(
   quiet: Boolean = false,
   wrappedCode: Boolean = true,
   sessionEnabled: Boolean = true,
+  scalaCliPath: String = "scala",
+  libraryJarPath: Option[String] = None,
 )
 
 object Config:
@@ -53,6 +54,8 @@ object Config:
           warn(s"Incomplete LLM config in '$path': missing ${missing.mkString(", ")}. LLM config ignored.")
           None
     }.orElse(base.llmConfig)
+    val scalaCliPath = cursor.get[String]("scalaCliPath").toOption.getOrElse(base.scalaCliPath)
+    val libraryJarPath = cursor.get[String]("libraryJarPath").toOption.orElse(base.libraryJarPath)
     base.copy(
       recordPath = recordPath,
       strictMode = strictMode,
@@ -61,6 +64,8 @@ object Config:
       quiet = quiet,
       wrappedCode = wrappedCode,
       sessionEnabled = sessionEnabled,
+      scalaCliPath = scalaCliPath,
+      libraryJarPath = libraryJarPath,
     )
 
   /** Validate that LlmConfig doesn't have empty-string fields (from partial CLI flags). */
@@ -101,6 +106,12 @@ object Config:
       opt[String]('c', "config")
         .action((x, c) => mergeFromFile(c, x))
         .text("Path to JSON config file."),
+      opt[String]("scala-cli")
+        .action((x, c) => c.copy(scalaCliPath = x))
+        .text("Path to the scala-cli binary (default: 'scala')."),
+      opt[String]("library-jar")
+        .action((x, c) => c.copy(libraryJarPath = Some(x)))
+        .text("Path to the pre-compiled library JAR."),
       opt[String]("llm-base-url")
         .action((x, c) =>
           val llm = c.llmConfig.getOrElse(LlmConfig("", "", ""))

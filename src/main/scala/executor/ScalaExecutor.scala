@@ -1,11 +1,11 @@
 package tacit
 package executor
 
-import scala.collection.mutable
-import java.io.{ByteArrayOutputStream, PrintStream}
-import java.util.UUID
-import dotty.tools.repl.{ReplDriver, State}
+import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import java.nio.file.Files
 import java.nio.charset.StandardCharsets
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import core.{Config, Context}
 import Context.*
 
@@ -16,53 +16,23 @@ case class ExecutionResult(
     error: Option[String] = None
 )
 
-/** Executes Scala code snippets */
+/** Executes Scala code snippets via external scala-cli process */
 object ScalaExecutor:
 
-  /** Computes the classpath for the embedded Scala REPL.
-    *
-    * `-usejavacp` only reads `java.class.path`, which can be incomplete
-    * (e.g. fat JAR, custom classloader). This builds an explicit
-    * classpath by also locating Scala core libraries via loaded classes.
-    */
-  private[executor] lazy val replClasspathArgs: Array[String] =
-    val paths = mutable.LinkedHashSet[String]()
+  /** Compiler flags passed to scala-cli for code execution. */
+  private[executor] val compilerFlags: List[String] = List(
+    "-language:experimental.captureChecking",
+    "-language:experimental.modularity",
+    "-Yexplicit-nulls",
+    "-Wsafe-init",
+    "-deprecation",
+    "-feature",
+    "-unchecked",
+    "-color:never",
+  )
 
-    // java.class.path: covers sbt run, java -cp, etc.
-    Option(System.getProperty("java.class.path")).foreach { cp =>
-      paths ++= cp.split(java.io.File.pathSeparator).filter(_.nonEmpty)
-    }
-
-    // Locate the Scala standard library via a loaded class.
-    // This covers cases where java.class.path doesn't list it
-    // (fat JARs, app servers, custom launchers).
-    // Only the stdlib is included: compiler/REPL internals are
-    // intentionally kept off the executed code's classpath.
-    val markerClasses: List[Class[?]] = List(
-      classOf[scala.Unit],                    // scala-library
-    )
-    for cls <- markerClasses do
-      try
-        val loc = cls.getProtectionDomain.getCodeSource.getLocation
-        paths += java.nio.file.Paths.get(loc.toURI).toString
-      catch case _: Exception => ()
-
-    Array(
-      "-classpath", paths.mkString(java.io.File.pathSeparator),
-      "-color:never",
-      "-deprecation",
-      "-feature",
-      "-unchecked",
-      "-Yexplicit-nulls",
-      // "-Yno-predef",
-      "-Wsafe-init",
-      "-language:experimental.captureChecking",
-      // "-language:experimental.separationChecking",
-      "-language:experimental.modularity"
-    )
-
-  /** Preamble code injected before user code to make the library API available. */
-  private[executor] def libraryPreamble(cfg: Config): String =
+  /** Builds the API initialization code (without imports). */
+  private[executor] def apiInitCode(cfg: Config): String =
     val classifiedExpr =
       if cfg.classifiedPaths.isEmpty then "Set.empty[java.nio.file.Path]"
       else cfg.classifiedPaths
@@ -72,25 +42,20 @@ object ScalaExecutor:
     val llmConfigExpr = cfg.llmConfig match
       case None => "None"
       case Some(llm) => s"""Some(LlmConfig("${esc(llm.baseUrl)}", "${esc(llm.apiKey)}", "${esc(llm.model)}"))"""
-    s"""|import tacit.library.*
-        |val api: Interface = new InterfaceImpl(
+    s"""|val api: Interface = new InterfaceImpl(
         |  (root, check, classified) => new RealFileSystem(java.nio.file.Path.of(root), check, classified),
         |  ${cfg.strictMode},
         |  $classifiedExpr,
         |  $llmConfigExpr
         |)
-        |// import Predef.{print => _, println => _, printf => _, readLine => _, readInt => _, readDouble => _}
         |import api.*
-        |given IOCapability = null.asInstanceOf[IOCapability]
-        |""".stripMargin
+        |given IOCapability = null.asInstanceOf[IOCapability]""".stripMargin
 
-  /** Wraps user code in a `def run() = ...; run()` block to avoid capture checking REPL errors. */
-  private[executor]  def wrapCode(code: String, wrap: Boolean): String =
-    if !wrap then code
-    else
-      // val whitespace = code.takeWhile(_.isWhitespace)
-      val indented = code.linesIterator.map(line => s"  $line").mkString("\n")
-      s"def run()(using IOCapability): Any =\n$indented\nrun()"
+  /** Preamble code for REPL sessions (imports + api init). */
+  private[executor] def replPreamble(cfg: Config): String =
+    s"""|import tacit.library.*
+        |${apiInitCode(cfg)}
+        |""".stripMargin
 
   /** Returns Some(errorResult) on validation failure, None on success. */
   private[executor] def validated(code: String): Option[ExecutionResult] =
@@ -98,74 +63,181 @@ object ScalaExecutor:
       ExecutionResult(false, "", Some(CodeValidator.formatErrors(violations)))
     )
 
-  /** Redirects stdout/stderr to the given print stream, runs the block, and captures output.
-    * Detects Scala 3 compilation errors in the output (lines starting with `-- [E`)
-    * and sets success=false accordingly.
-    */
-  private[executor] def withOutputCapture(
-    outputCapture: ByteArrayOutputStream,
-    printStream: PrintStream
-  )(run: => Unit): ExecutionResult =
-    outputCapture.reset()
-    try
-      val oldOut = System.out
-      val oldErr = System.err
-      System.setOut(printStream)
-      System.setErr(printStream)
-      try run
-      finally
-        System.setOut(oldOut)
-        System.setErr(oldErr)
-      printStream.flush()
-      val output = outputCapture.toString(StandardCharsets.UTF_8).trim
-      val hasCompileErrors = output.linesIterator.exists(_.startsWith("-- [E"))
-      ExecutionResult(!hasCompileErrors, output)
-    catch
-      case e: Exception =>
-        printStream.flush()
-        ExecutionResult(false, outputCapture.toString(StandardCharsets.UTF_8).trim,
-          Some(s"${e.getClass.getSimpleName}: ${e.getMessage}"))
+  /** Build a complete .scala source file with directives + @main wrapping user code. */
+  private def buildScript(code: String, cfg: Config): String =
+    val sb = StringBuilder()
+    // scala-cli directives
+    sb.append("//> using scala 3.nightly\n")
+    cfg.libraryJarPath.foreach(jar => sb.append(s"""//> using jar "$jar"\n"""))
+    for flag <- compilerFlags do
+      sb.append(s"//> using option $flag\n")
+    sb.append("\n")
+    sb.append("import tacit.library.*\n\n")
+    // Wrap everything in @main to avoid capture checking issues with top-level givens
+    sb.append("@main def __run() =\n")
+    // API init code (indented inside @main)
+    for line <- apiInitCode(cfg).linesIterator do
+      sb.append(s"  $line\n")
+    sb.append("\n")
+    // User code wrapped in a block; auto-print the result (like REPL behavior)
+    sb.append("  val __result__ : Any = {\n")
+    for line <- code.linesIterator do
+      sb.append(s"    $line\n")
+    sb.append("  }\n")
+    sb.append("  __result__ match\n")
+    sb.append("    case _: Unit => ()\n")
+    sb.append("    case other => println(other)\n")
+    sb.append("\n")
+    sb.toString
 
-  /** Execute a Scala code snippet stateless and return the result */
+  /** Execute a Scala code snippet statelessly via scala-cli and return the result. */
   def execute(code: String)(using Context): ExecutionResult =
     validated(code).getOrElse:
-      val outputCapture = new ByteArrayOutputStream()
-      val printStream = new PrintStream(outputCapture, true, StandardCharsets.UTF_8)
-      val driver = new ReplDriver(replClasspathArgs, printStream, Some(getClass.getClassLoader))
-      var state = driver.run(libraryPreamble(ctx.config))(using driver.initialState)
-      withOutputCapture(outputCapture, printStream):
-        state = driver.run(wrapCode(code, ctx.config.wrappedCode))(using state)
+      val cfg = ctx.config
+      val scriptContent = buildScript(code, cfg)
+      val tempFile = Files.createTempFile("safexec-", ".scala")
+      try
+        Files.writeString(tempFile, scriptContent, StandardCharsets.UTF_8)
+        runScalaCli(cfg.scalaCliPath, List("run", "--server=false", tempFile.toString), timeoutSeconds = 120)
+      finally
+        Files.deleteIfExists(tempFile)
+
+  /** Run a scala-cli command and capture output. */
+  private[executor] def runScalaCli(
+    scalaCliPath: String,
+    args: List[String],
+    timeoutSeconds: Long = 120,
+    input: Option[String] = None
+  ): ExecutionResult =
+    val cmd = scalaCliPath :: args
+    val pb = new ProcessBuilder(cmd*)
+    pb.redirectErrorStream(true)
+    val process = pb.start()
+
+    // Write input if provided
+    input.foreach { data =>
+      val writer = new PrintWriter(process.getOutputStream, true)
+      writer.print(data)
+      writer.flush()
+      writer.close()
+    }
+
+    // Read all output
+    val reader = new BufferedReader(new InputStreamReader(process.getInputStream, StandardCharsets.UTF_8))
+    val output = StringBuilder()
+    var line = reader.readLine()
+    while line != null do
+      output.append(line).append("\n")
+      line = reader.readLine()
+    reader.close()
+
+    val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+    if !completed then
+      process.destroyForcibly()
+      ExecutionResult(false, output.toString.trim, Some("Execution timed out"))
+    else
+      val exitCode = process.exitValue()
+      val out = output.toString.trim
+      if exitCode == 0 then
+        ExecutionResult(true, out)
+      else
+        // For non-zero exit, the output contains the error
+        ExecutionResult(false, out, None)
+
 end ScalaExecutor
 
-/** A REPL session that maintains state across executions */
+/** A REPL session backed by a persistent scala-cli repl process.
+  *
+  * JLine's "dumb terminal" mode (used when stdin is a pipe) discards
+  * buffered input lines if multiple lines arrive before the REPL reads them.
+  * To work around this, we read stdout character-by-character, waiting for
+  * the `scala> ` prompt before sending the next input line.
+  */
 class ReplSession(val id: String)(using Context):
   import ScalaExecutor.*
 
-  private val outputCapture = new ByteArrayOutputStream()
-  private val printStream = new PrintStream(outputCapture, true, StandardCharsets.UTF_8)
+  private val Prompt = "scala> "
 
-  private val driver = new ReplDriver(
-    replClasspathArgs,
-    printStream,
-    Some(getClass.getClassLoader)
-  )
-  private var state: State =
-    val s0 = driver.initialState
-    // Run preamble once to make library API available in the session
-    driver.run(libraryPreamble(ctx.config))(using s0)
+  private val cfg = ctx.config
+  private val cmd: List[String] =
+    val base = List(cfg.scalaCliPath, "repl", "--server=false", "-S", "3.nightly")
+    val jarArgs = cfg.libraryJarPath.toList.flatMap(jar => List("--jar", jar))
+    val flagArgs = ScalaExecutor.compilerFlags.flatMap(f => List("--scalac-option", f))
+    base ++ jarArgs ++ flagArgs
+
+  private val process: Process =
+    val pb = new ProcessBuilder(cmd*)
+    pb.redirectErrorStream(true)
+    pb.start()
+
+  private val stdin = new PrintWriter(process.getOutputStream, true)
+  private val stdoutStream = process.getInputStream
+
+  // Initialize: wait for first prompt, then feed preamble line by line
+  locally:
+    readUntilPrompt() // wait for initial "scala> "
+    for line <- replPreamble(cfg).linesIterator do
+      sendLine(line)
+      readUntilPrompt() // wait for REPL to process each line
 
   /** Execute code in this session and return the result */
   def execute(code: String): ExecutionResult =
     validated(code).getOrElse:
-      withOutputCapture(outputCapture, printStream):
-        state = driver.run(code)(using state)
+      val output = StringBuilder()
+      for line <- code.linesIterator do
+        sendLine(line)
+        output.append(readUntilPrompt())
+      val cleaned = cleanReplOutput(output.toString)
+      val hasErrors = cleaned.linesIterator.exists(l =>
+        l.startsWith("-- [E") || l.startsWith("-- Error"))
+      ExecutionResult(!hasErrors, cleaned.trim)
+
+  /** Send a single line to the REPL's stdin. */
+  private def sendLine(line: String): Unit =
+    stdin.println(line)
+    stdin.flush()
+
+  /** Read stdout character-by-character until the REPL prompt appears.
+    * Returns everything read before the prompt (includes newlines).
+    * Handles both `scala> ` (ready) and `     | ` (continuation) prompts;
+    * for continuation prompts, returns immediately so the next line can be sent.
+    */
+  private def readUntilPrompt(): String =
+    val sb = StringBuilder()
+    var done = false
+    while !done do
+      val ch = stdoutStream.read()
+      if ch == -1 then
+        done = true // EOF — process exited
+      else
+        sb.append(ch.toChar)
+        val s = sb.toString
+        if s.endsWith(Prompt) then
+          done = true
+          // Remove the trailing prompt from output
+          sb.delete(sb.length - Prompt.length, sb.length)
+        else if s.endsWith("     | ") then
+          done = true
+          sb.delete(sb.length - "     | ".length, sb.length)
+    sb.toString
+
+  private def cleanReplOutput(raw: String): String =
+    raw.linesIterator
+      .filterNot(l =>
+        val trimmed = l.trim
+        trimmed.startsWith("scala>") || trimmed == "|")
+      .mkString("\n")
+
+  def destroy(): Unit =
+    try stdin.close() catch case _: Exception => ()
+    process.destroyForcibly()
 
 object ReplSession:
   def create(using Context): ReplSession = new ReplSession(UUID.randomUUID().toString)
 
 /** Manages multiple REPL sessions */
 class SessionManager(using Context):
-  private val sessions = mutable.Map[String, ReplSession]()
+  private val sessions = scala.collection.mutable.Map[String, ReplSession]()
 
   /** Create a new session and return its ID */
   def createSession(): String =
@@ -175,7 +247,11 @@ class SessionManager(using Context):
 
   /** Delete a session by ID */
   def deleteSession(sessionId: String): Boolean =
-    sessions.remove(sessionId).isDefined
+    sessions.remove(sessionId) match
+      case Some(session) =>
+        session.destroy()
+        true
+      case None => false
 
   /** Get a session by ID */
   def getSession(sessionId: String): Option[ReplSession] =

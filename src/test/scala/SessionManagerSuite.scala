@@ -2,7 +2,7 @@ import tacit.executor.SessionManager
 import tacit.core.{Context, Config}
 
 class SessionManagerSuite extends munit.FunSuite:
-  given Context = Context(Config(), None)
+  given Context = Context(Config(libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar"))), None)
 
   test("create and list sessions"):
     val manager = new SessionManager

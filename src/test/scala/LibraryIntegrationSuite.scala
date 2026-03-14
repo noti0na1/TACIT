@@ -3,7 +3,7 @@ import tacit.core.{Context, Config}
 import java.nio.file.Files
 
 class LibraryIntegrationSuite extends munit.FunSuite:
-  given Context = Context(Config(), None)
+  given Context = Context(Config(libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar"))), None)
 
   /** Helper: assert that code fails to compile in the REPL with an error matching `pattern`. */
   private def assertCompileError(code: String, pattern: String)(using loc: munit.Location): Unit =
@@ -199,7 +199,7 @@ class LibraryIntegrationSuite extends munit.FunSuite:
     Files.writeString(secretFile, "TOP SECRET DATA")
 
     // Configure classified paths to include secrets/
-    val cfg = Config(classifiedPaths = Set(secretsDir.toString))
+    val cfg = Config(classifiedPaths = Set(secretsDir.toString), libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar")))
     given Context = Context(cfg, None)
 
     // Attempt the bypass: requestFileSystem on secrets/docs (a subdirectory of classified)

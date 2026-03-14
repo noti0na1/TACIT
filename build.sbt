@@ -37,7 +37,6 @@ lazy val lib = project
 
 lazy val root = project
   .in(file("."))
-  .dependsOn(lib)
   .settings(
     name := "SafeExecMCP",
     version := "0.1.0-SNAPSHOT",
@@ -61,23 +60,22 @@ lazy val root = project
       "io.circe" %% "circe-generic" % "0.14.15",
       "io.circe" %% "circe-parser" % "0.14.15",
       "com.github.scopt" %% "scopt" % "4.1.1-M3",
-      "org.scala-lang" %% "scala3-compiler" % scala3Version,
-      "org.scala-lang" %% "scala3-repl" % scala3Version,
       "org.scalameta" %% "munit" % "1.2.2" % Test,
     ),
 
     // Bundle Interface.scala source as a classpath resource so show_interface can serve it
     Compile / resourceGenerators += Def.task {
-      val src = (lib / baseDirectory).value / "Interface.scala"
+      val src = baseDirectory.value / "library" / "Interface.scala"
       val dst = (Compile / resourceManaged).value / "Interface.scala"
       IO.copyFile(src, dst)
       Seq(dst)
     }.taskValue,
 
-    // Enable forking for the REPL execution
     fork := true,
     // Connect stdin to the forked process (needed for MCP stdio communication)
     run / connectInput := true,
+    // Pass library JAR path to tests
+    Test / javaOptions += s"-Dlibrary.jar=${baseDirectory.value / "library.jar"}",
     
     // Assembly settings for creating a fat JAR
     assembly / mainClass := Some("tacit.SafeExecMCP"),

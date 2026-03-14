@@ -48,8 +48,9 @@ class McpServerIntegrationSuite extends munit.FunSuite:
   def startServer(): McpClient =
     // Use the main class directly via Java to avoid sbt logging interference
     val classpath = System.getProperty("java.class.path")
+    val libraryJar = Option(System.getProperty("library.jar")).getOrElse("library.jar")
     val processBuilder = new ProcessBuilder(
-      "java", "-cp", classpath, "tacit.SafeExecMCP"
+      "java", "-cp", classpath, "tacit.SafeExecMCP", "--library-jar", libraryJar
     )
     processBuilder.directory(new java.io.File(System.getProperty("user.dir")))
     processBuilder.redirectErrorStream(false)

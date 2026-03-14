@@ -2,7 +2,7 @@ import tacit.executor.ScalaExecutor
 import tacit.core.{Context, Config}
 
 class ScalaExecutorSuite extends munit.FunSuite:
-  given Context = Context(Config(), None)
+  given Context = Context(Config(libraryJarPath = Some(Option(System.getProperty("library.jar")).getOrElse("library.jar"))), None)
 
   test("execute simple expression"):
     val result = ScalaExecutor.execute("1 + 1")
