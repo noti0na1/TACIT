@@ -50,13 +50,11 @@ jobs:
       uses: sbt/setup-sbt@v1
     - name: Build server and library JARs
       run: |
-        sbt assembly
-        mkdir -p dist
-        cp library/target/scala-*/TACIT-library.jar dist/TACIT-library.jar
-        cp target/scala-*/TACIT-assembly-*.jar dist/TACIT-assembly.jar
+        chmod +x build.sh
+        ./build.sh dist
     - name: Upload JARs to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           dist/TACIT-library.jar
-          dist/TACIT-assembly.jar
+          dist/TACIT.jar
