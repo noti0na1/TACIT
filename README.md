@@ -2,8 +2,9 @@
 
 **Paper:** [Tracking Capabilities for Safer Agents (arXiv:2603.00991)](https://arxiv.org/abs/2603.00991)
 
-TACIT (Tracked Agent Capabilities In Types) is an [MCP](https://modelcontextprotocol.io/) server that provides a **safety harness** for AI agents.
+TACIT (Tracked Agent Capabilities In Types) is a **safety harness** for AI agents.
 Instead of calling tools directly, agents write code in Scala 3 with [capture checking](https://nightly.scala-lang.org/docs/reference/experimental/capture-checking/index.html): a type system that statically tracks capabilities and enforces that agent code cannot forge access rights, cannot perform effects beyond its budget, and cannot leak information from pure sub-computations.
+It provides an [MCP](https://modelcontextprotocol.io/) interface, so that it can be easily used by all MCP-compatible agents.
 
 ![TACIT Framework Overview](diagrams/overall.png)
 
@@ -15,7 +16,7 @@ The framework has three main components:
 
 ## Quick Start
 
-TACIT is a standard MCP server that communicates via JSON-RPC over stdio. It works with any MCP-compatible agent, including Claude Code, OpenCode, GitHub Copilot, and others.
+TACIT provides a standard MCP server that communicates via JSON-RPC over stdio. It works with any MCP-compatible agent, including Claude Code, OpenCode, GitHub Copilot, and others.
 
 ### 1. Build
 
