@@ -27,7 +27,7 @@ It will download the latest server and library JARs from GitHub releases and pla
 
 ```bash
 # Download the script directly (no git clone required)
-curl -fsSL https://raw.githubusercontent.com/noti0na1/TACIT/refs/heads/main/download_release.sh -o download_release.sh
+curl -fsSL https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/download_release.sh -o download_release.sh
 chmod +x download_release.sh
 
 # Run it
@@ -38,7 +38,7 @@ Optional:
 
 ```bash
 # Or use wget instead of curl
-wget -q https://raw.githubusercontent.com/noti0na1/TACIT/refs/heads/main/download_release.sh -O download_release.sh
+wget -q https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/download_release.sh -O download_release.sh
 chmod +x download_release.sh
 
 # Download into a custom directory
@@ -60,7 +60,7 @@ By default, this downloads:
 Requires JDK 17+ and sbt 1.12+.
 
 ```bash
-git clone https://github.com/noti0na1/TACIT.git
+git clone https://github.com/lampepfl/TACIT.git
 cd TACIT
 
 ./build.sh

@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage:
 #   ./download_release.sh [--pre-release] [dist-path]
 
-OWNER_REPO="noti0na1/TACIT"
+OWNER_REPO="lampepfl/TACIT"
 PRE_RELEASE=false
 DEST_DIR="${1:-.}"
 
