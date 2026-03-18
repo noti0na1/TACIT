@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OWNER_REPO="lampepfl/TACIT"
+CACHE_DIR="${HOME}/.cache/tacit"
+INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_PATH="${INSTALL_DIR}/tacit"
+SERVER_JAR="${CACHE_DIR}/TACIT.jar"
+LIBRARY_JAR="${CACHE_DIR}/TACIT-library.jar"
+RELEASE_MARKER="${CACHE_DIR}/release.txt"
+PATH_MARKER_BEGIN="# >>> tacit path >>>"
+PATH_MARKER_END="# <<< tacit path <<<"
+
+print_help() {
+  cat <<EOF
+TACIT command line wrapper
+
+Usage:
+  tacit help
+  tacit setup
+  tacit uninstall
+  tacit update
+  tacit serve [server-args...]
+
+Commands:
+  help     Show this help message.
+  setup    Install tacit into ~/.local/bin, ensure PATH is configured,
+           verify Java 17+, and download the latest TACIT release jars.
+  uninstall Remove the installed tacit wrapper and delete cached TACIT jars.
+  update   Download the latest TACIT release jars into ~/.cache/tacit when
+           the cached release is missing or out of date.
+  serve    Run TACIT with the latest cached jars and forward extra args to
+           the Java process.
+
+Locations:
+  Script install: ~/.local/bin/tacit
+  Jar cache:      ~/.cache/tacit/
+
+Examples:
+  tacit setup
+  tacit uninstall
+  tacit update
+  tacit serve --quiet
+EOF
+}
+
+fail() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+require_command() {
+  local name="$1"
+  command -v "$name" >/dev/null 2>&1 || fail "$name is required but was not found."
+}
+
+java_major_version() {
+  local version_line raw_version major
+
+  version_line="$(java -version 2>&1 | head -n1 || true)"
+  [[ -n "$version_line" ]] || return 1
+
+  if [[ "$version_line" =~ \"([0-9]+)(\.([0-9]+))?([._][0-9]+)? ]]; then
+    raw_version="${BASH_REMATCH[1]}"
+    if [[ "$raw_version" == "1" && -n "${BASH_REMATCH[3]:-}" ]]; then
+      major="${BASH_REMATCH[3]}"
+    else
+      major="$raw_version"
+    fi
+    printf '%s\n' "$major"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_java() {
+  local major
+
+  if ! command -v java >/dev/null 2>&1; then
+    fail "Java 17+ is required. Install Java and try again."
+  fi
+
+  if ! major="$(java_major_version)"; then
+    fail "Unable to detect the installed Java version. Install Java 17+ and try again."
+  fi
+
+  if (( major < 17 )); then
+    fail "Java 17+ is required. Found Java ${major}. Install a newer Java version and try again."
+  fi
+}
+
+ensure_cache_dir() {
+  mkdir -p "$CACHE_DIR"
+}
+
+release_json() {
+  local api_url="https://api.github.com/repos/${OWNER_REPO}/releases/latest"
+  local curl_args=(-fsSL -H "Accept: application/vnd.github+json")
+
+  require_command curl
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+
+  curl "${curl_args[@]}" "$api_url"
+}
+
+extract_release_field() {
+  local json="$1"
+  local field="$2"
+
+  printf '%s' "$json" | grep -m1 -oE "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" | sed -E 's/^[^"]*"[^"]*"[[:space:]]*:[[:space:]]*"([^"]+)"$/\1/'
+}
+
+extract_release_id() {
+  local json="$1"
+
+  printf '%s' "$json" | grep -m1 -oE '"id"[[:space:]]*:[[:space:]]*[0-9]+' | sed -E 's/.*:[[:space:]]*//'
+}
+
+extract_assets() {
+  local json="$1"
+  local library_url=""
+  local assembly_url=""
+  local current_name=""
+  local url=""
+
+  while IFS= read -r token; do
+    if [[ "$token" =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+      current_name="${BASH_REMATCH[1]}"
+      continue
+    fi
+
+    if [[ "$token" =~ \"browser_download_url\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+      url="${BASH_REMATCH[1]}"
+
+      if [[ "$current_name" == "TACIT-library.jar" ]]; then
+        library_url="$url"
+      fi
+
+      if [[ "$current_name" == "TACIT.jar" ]]; then
+        assembly_url="$url"
+      fi
+
+      current_name=""
+    fi
+  done < <(printf '%s' "$json" | grep -oE '"name"[[:space:]]*:[[:space:]]*"[^"]+"|"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+"')
+
+  [[ -n "$assembly_url" ]] || fail "required asset TACIT.jar not found in the latest release."
+  [[ -n "$library_url" ]] || fail "required asset TACIT-library.jar not found in the latest release."
+
+  printf 'TACIT.jar\t%s\nTACIT-library.jar\t%s\n' "$assembly_url" "$library_url"
+}
+
+release_key_from_json() {
+  local json="$1"
+  local release_id tag_name
+
+  release_id="$(extract_release_id "$json")"
+  tag_name="$(extract_release_field "$json" "tag_name")"
+  [[ -n "$release_id" && -n "$tag_name" ]] || fail "failed to parse the latest release metadata."
+  printf '%s|%s\n' "$release_id" "$tag_name"
+}
+
+cached_release_matches() {
+  local release_key="$1"
+
+  [[ -f "$SERVER_JAR" && -f "$LIBRARY_JAR" && -f "$RELEASE_MARKER" ]] || return 1
+  [[ "$(cat "$RELEASE_MARKER")" == "$release_key" ]]
+}
+
+download_latest_release() {
+  local json release_key tmp_dir
+  local name url
+
+  ensure_cache_dir
+  json="$(release_json)"
+  release_key="$(release_key_from_json "$json")"
+
+  if cached_release_matches "$release_key"; then
+    echo "TACIT is already up to date in ${CACHE_DIR}."
+    return 0
+  fi
+
+  tmp_dir="$(mktemp -d "${CACHE_DIR}/download.XXXXXX")"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  echo "Downloading the latest TACIT release to ${CACHE_DIR}"
+  while IFS=$'\t' read -r name url; do
+    [[ -n "$name" && -n "$url" ]] || continue
+    echo "- ${name}"
+    curl -fL "$url" -o "${tmp_dir}/${name}"
+  done < <(extract_assets "$json")
+
+  mv "${tmp_dir}/TACIT.jar" "$SERVER_JAR"
+  mv "${tmp_dir}/TACIT-library.jar" "$LIBRARY_JAR"
+  printf '%s\n' "$release_key" > "$RELEASE_MARKER"
+
+  trap - RETURN
+  rmdir "$tmp_dir" 2>/dev/null || true
+
+  echo "Latest TACIT release is ready:"
+  echo "- ${SERVER_JAR}"
+  echo "- ${LIBRARY_JAR}"
+}
+
+profile_candidates() {
+  local shell_name
+
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      printf '%s\n' "${HOME}/.zshrc" "${HOME}/.zprofile"
+      ;;
+    bash)
+      printf '%s\n' "${HOME}/.bashrc" "${HOME}/.profile"
+      ;;
+    *)
+      printf '%s\n' "${HOME}/.profile"
+      ;;
+  esac
+}
+
+path_snippet() {
+  cat <<EOF
+${PATH_MARKER_BEGIN}
+if [[ ":\$PATH:" != *":\$HOME/.local/bin:"* ]]; then
+  export PATH="\$HOME/.local/bin:\$PATH"
+fi
+${PATH_MARKER_END}
+EOF
+}
+
+update_profile_path() {
+  local updated_any=false
+  local file content snippet
+
+  snippet="$(path_snippet)"
+
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    touch "$file"
+    content="$(cat "$file")"
+    if [[ "$content" == *"$PATH_MARKER_BEGIN"* ]] || [[ "$content" == *'$HOME/.local/bin'* ]] || [[ "$content" == *"${HOME}/.local/bin"* ]]; then
+      continue
+    fi
+
+    {
+      printf '\n'
+      printf '%s\n' "$snippet"
+    } >> "$file"
+    echo "Updated ${file} to include ~/.local/bin in PATH."
+    updated_any=true
+  done < <(profile_candidates)
+
+  if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
+
+  if [[ "$updated_any" == true ]]; then
+    echo "Open a new shell or source your profile to pick up PATH changes."
+  else
+    echo "~/.local/bin is already configured in PATH profiles."
+  fi
+}
+
+install_self() {
+  local source_path
+
+  source_path="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+  mkdir -p "$INSTALL_DIR"
+  cp "$source_path" "$INSTALL_PATH"
+  chmod +x "$INSTALL_PATH"
+  echo "Installed tacit to ${INSTALL_PATH}"
+}
+
+require_cached_jars() {
+  [[ -f "$SERVER_JAR" && -f "$LIBRARY_JAR" ]] || fail "No cached TACIT jars were found. Run 'tacit update' first."
+}
+
+cmd_setup() {
+  ensure_java
+  install_self
+  update_profile_path
+  download_latest_release
+}
+
+cmd_update() {
+  download_latest_release
+}
+
+cmd_uninstall() {
+  if [[ -f "$INSTALL_PATH" ]]; then
+    rm -f "$INSTALL_PATH"
+    echo "Removed ${INSTALL_PATH}"
+  else
+    echo "No installed tacit wrapper was found at ${INSTALL_PATH}."
+  fi
+
+  if [[ -d "$CACHE_DIR" ]]; then
+    rm -rf "$CACHE_DIR"
+    echo "Removed ${CACHE_DIR}"
+  else
+    echo "No TACIT cache directory was found at ${CACHE_DIR}."
+  fi
+}
+
+cmd_serve() {
+  ensure_java
+  require_cached_jars
+  exec java -jar "$SERVER_JAR" --library-jar "$LIBRARY_JAR" "$@"
+}
+
+main() {
+  local command="${1:-help}"
+
+  case "$command" in
+    help|-h|--help)
+      print_help
+      ;;
+    setup)
+      shift
+      [[ $# -eq 0 ]] || fail "setup does not accept additional arguments."
+      cmd_setup
+      ;;
+    uninstall)
+      shift
+      [[ $# -eq 0 ]] || fail "uninstall does not accept additional arguments."
+      cmd_uninstall
+      ;;
+    update)
+      shift
+      [[ $# -eq 0 ]] || fail "update does not accept additional arguments."
+      cmd_update
+      ;;
+    serve)
+      shift
+      cmd_serve "$@"
+      ;;
+    *)
+      echo "Unknown command: ${command}" >&2
+      echo >&2
+      print_help >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
