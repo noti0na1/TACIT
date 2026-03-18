@@ -56,8 +56,6 @@ By default, `tacit` uses:
 | MCP Server | `~/.cache/tacit/TACIT.jar` |
 | Library | `~/.cache/tacit/TACIT-library.jar` |
 
-If you want the release artifacts without installing a wrapper command, download the JARs directly instead.
-
 #### Option 2: Download Prebuilt Release JARs Directly
 
 If you do not want the wrapper, use the release download script instead.
