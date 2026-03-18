@@ -42,10 +42,6 @@ This installs the `tacit` command into `~/.local/bin`, ensures `~/.local/bin` is
 Common commands:
 
 ```bash
-# Or use wget instead of curl
-wget -q https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/tacit -O tacit
-chmod +x tacit
-
 # Refresh the cached release if a new version exists
 tacit update
 
