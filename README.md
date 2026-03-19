@@ -26,7 +26,7 @@ Choose one of the installation approaches below. The `tacit` CLI wrapper is the 
 
 #### Option 1: Install `tacit` (Recommended)
 
-`tacit` is a small wrapper command for managing TACIT locally. Use `tacit setup` once to install the command and fetch the latest release, `tacit update` to update the JARs, and `tacit serve` to launch the MCP server.
+`tacit` is a small wrapper command for managing TACIT locally. Use `tacit setup` once to install the command and fetch the latest release, `tacit update` to update the JARs, `tacit self update` to refresh the wrapper itself, and `tacit serve` to launch the MCP server.
 
 ```bash
 # Download the wrapper directly (no git clone required)
@@ -45,8 +45,14 @@ Common commands:
 # Refresh the cached release if a new version exists
 tacit update
 
+# Refresh the tacit wrapper itself
+tacit self update
+
 # Start the MCP server
 tacit serve
+
+# Remove the wrapper and cached release
+tacit self uninstall
 ```
 
 By default, `tacit` uses:
