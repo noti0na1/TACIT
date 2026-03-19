@@ -1,0 +1,448 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OWNER_REPO="lampepfl/TACIT"
+SCRIPT_SOURCE_URL="https://raw.githubusercontent.com/${OWNER_REPO}/refs/heads/main/tacit"
+CACHE_DIR="${HOME}/.cache/tacit"
+INSTALL_DIR="${HOME}/.local/bin"
+INSTALL_PATH="${INSTALL_DIR}/tacit"
+SERVER_JAR="${CACHE_DIR}/TACIT.jar"
+LIBRARY_JAR="${CACHE_DIR}/TACIT-library.jar"
+RELEASE_MARKER="${CACHE_DIR}/release.txt"
+PATH_MARKER_BEGIN="# >>> tacit path >>>"
+PATH_MARKER_END="# <<< tacit path <<<"
+
+print_help() {
+  cat <<EOF
+TACIT command line wrapper
+
+Usage:
+  tacit help
+  tacit setup
+  tacit self update
+  tacit self uninstall
+  tacit update
+  tacit serve [server-args...]
+
+Commands:
+  help     Show this help message.
+  setup    Install tacit into ~/.local/bin, ensure PATH is configured,
+           verify Java 17+, and download the latest TACIT release jars.
+  self     Manage the tacit wrapper itself.
+  update   Download the latest TACIT release jars into ~/.cache/tacit when
+           the cached release is missing or out of date.
+  serve    Run TACIT with the latest cached jars and forward extra args to
+           the Java process.
+
+Self commands:
+  update    Download the latest tacit wrapper from GitHub and replace the
+            current script when it has changed.
+  uninstall Remove the installed tacit wrapper and delete cached TACIT jars.
+
+Locations:
+  Script install: ~/.local/bin/tacit
+  Jar cache:      ~/.cache/tacit/
+
+Examples:
+  tacit setup
+  tacit self update
+  tacit self uninstall
+  tacit update
+  tacit serve --quiet
+EOF
+}
+
+print_self_help() {
+  cat <<EOF
+TACIT self-management commands
+
+Usage:
+  tacit self update
+  tacit self uninstall
+
+Commands:
+  update    Download the latest tacit wrapper from GitHub and replace the
+            current script when it has changed.
+  uninstall Remove the installed tacit wrapper and delete cached TACIT jars.
+EOF
+}
+
+fail() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+require_command() {
+  local name="$1"
+  command -v "$name" >/dev/null 2>&1 || fail "$name is required but was not found."
+}
+
+java_major_version() {
+  local version_line raw_version major
+
+  version_line="$(java -version 2>&1 | head -n1 || true)"
+  [[ -n "$version_line" ]] || return 1
+
+  if [[ "$version_line" =~ \"([0-9]+)(\.([0-9]+))?([._][0-9]+)? ]]; then
+    raw_version="${BASH_REMATCH[1]}"
+    if [[ "$raw_version" == "1" && -n "${BASH_REMATCH[3]:-}" ]]; then
+      major="${BASH_REMATCH[3]}"
+    else
+      major="$raw_version"
+    fi
+    printf '%s\n' "$major"
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_java() {
+  local major
+
+  if ! command -v java >/dev/null 2>&1; then
+    fail "Java 17+ is required. Install Java and try again."
+  fi
+
+  if ! major="$(java_major_version)"; then
+    fail "Unable to detect the installed Java version. Install Java 17+ and try again."
+  fi
+
+  if (( major < 17 )); then
+    fail "Java 17+ is required. Found Java ${major}. Install a newer Java version and try again."
+  fi
+}
+
+ensure_cache_dir() {
+  mkdir -p "$CACHE_DIR"
+}
+
+release_json() {
+  local api_url="https://api.github.com/repos/${OWNER_REPO}/releases/latest"
+  local curl_args=(-fsSL -H "Accept: application/vnd.github+json")
+
+  require_command curl
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+
+  curl "${curl_args[@]}" "$api_url"
+}
+
+extract_release_field() {
+  local json="$1"
+  local field="$2"
+
+  printf '%s' "$json" | grep -m1 -oE "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" | sed -E 's/^[^"]*"[^"]*"[[:space:]]*:[[:space:]]*"([^"]+)"$/\1/'
+}
+
+extract_release_id() {
+  local json="$1"
+
+  printf '%s' "$json" | grep -m1 -oE '"id"[[:space:]]*:[[:space:]]*[0-9]+' | sed -E 's/.*:[[:space:]]*//'
+}
+
+extract_assets() {
+  local json="$1"
+  local library_url=""
+  local assembly_url=""
+  local current_name=""
+  local url=""
+
+  while IFS= read -r token; do
+    if [[ "$token" =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+      current_name="${BASH_REMATCH[1]}"
+      continue
+    fi
+
+    if [[ "$token" =~ \"browser_download_url\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+      url="${BASH_REMATCH[1]}"
+
+      if [[ "$current_name" == "TACIT-library.jar" ]]; then
+        library_url="$url"
+      fi
+
+      if [[ "$current_name" == "TACIT.jar" ]]; then
+        assembly_url="$url"
+      fi
+
+      current_name=""
+    fi
+  done < <(printf '%s' "$json" | grep -oE '"name"[[:space:]]*:[[:space:]]*"[^"]+"|"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+"')
+
+  [[ -n "$assembly_url" ]] || fail "required asset TACIT.jar not found in the latest release."
+  [[ -n "$library_url" ]] || fail "required asset TACIT-library.jar not found in the latest release."
+
+  printf 'TACIT.jar\t%s\nTACIT-library.jar\t%s\n' "$assembly_url" "$library_url"
+}
+
+release_key_from_json() {
+  local json="$1"
+  local release_id tag_name
+
+  release_id="$(extract_release_id "$json")"
+  tag_name="$(extract_release_field "$json" "tag_name")"
+  [[ -n "$release_id" && -n "$tag_name" ]] || fail "failed to parse the latest release metadata."
+  printf '%s|%s\n' "$release_id" "$tag_name"
+}
+
+cached_release_matches() {
+  local release_key="$1"
+
+  [[ -f "$SERVER_JAR" && -f "$LIBRARY_JAR" && -f "$RELEASE_MARKER" ]] || return 1
+  [[ "$(cat "$RELEASE_MARKER")" == "$release_key" ]]
+}
+
+download_latest_release() {
+  local json release_key tmp_dir
+  local name url
+
+  ensure_cache_dir
+  json="$(release_json)"
+  release_key="$(release_key_from_json "$json")"
+
+  if cached_release_matches "$release_key"; then
+    echo "TACIT is already up to date in ${CACHE_DIR}."
+    return 0
+  fi
+
+  tmp_dir="$(mktemp -d "${CACHE_DIR}/download.XXXXXX")"
+  trap 'rm -rf "$tmp_dir"' RETURN
+
+  echo "Downloading the latest TACIT release to ${CACHE_DIR}"
+  while IFS=$'\t' read -r name url; do
+    [[ -n "$name" && -n "$url" ]] || continue
+    echo "- ${name}"
+    curl -fL "$url" -o "${tmp_dir}/${name}"
+  done < <(extract_assets "$json")
+
+  mv "${tmp_dir}/TACIT.jar" "$SERVER_JAR"
+  mv "${tmp_dir}/TACIT-library.jar" "$LIBRARY_JAR"
+  printf '%s\n' "$release_key" > "$RELEASE_MARKER"
+
+  trap - RETURN
+  rmdir "$tmp_dir" 2>/dev/null || true
+
+  echo "Latest TACIT release is ready:"
+  echo "- ${SERVER_JAR}"
+  echo "- ${LIBRARY_JAR}"
+}
+
+profile_candidates() {
+  local shell_name
+
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      printf '%s\n' "${HOME}/.zshrc" "${HOME}/.zprofile"
+      ;;
+    bash)
+      printf '%s\n' "${HOME}/.bashrc" "${HOME}/.profile"
+      ;;
+    *)
+      printf '%s\n' "${HOME}/.profile"
+      ;;
+  esac
+}
+
+path_snippet() {
+  cat <<EOF
+${PATH_MARKER_BEGIN}
+if [[ ":\$PATH:" != *":\$HOME/.local/bin:"* ]]; then
+  export PATH="\$HOME/.local/bin:\$PATH"
+fi
+${PATH_MARKER_END}
+EOF
+}
+
+update_profile_path() {
+  local updated_any=false
+  local file content snippet
+
+  snippet="$(path_snippet)"
+
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    touch "$file"
+    content="$(cat "$file")"
+    if [[ "$content" == *"$PATH_MARKER_BEGIN"* ]] || [[ "$content" == *'$HOME/.local/bin'* ]] || [[ "$content" == *"${HOME}/.local/bin"* ]]; then
+      continue
+    fi
+
+    {
+      printf '\n'
+      printf '%s\n' "$snippet"
+    } >> "$file"
+    echo "Updated ${file} to include ~/.local/bin in PATH."
+    updated_any=true
+  done < <(profile_candidates)
+
+  if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
+
+  if [[ "$updated_any" == true ]]; then
+    echo "Open a new shell or source your profile to pick up PATH changes."
+  else
+    echo "~/.local/bin is already configured in PATH profiles."
+  fi
+}
+
+self_path() {
+  printf '%s\n' "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+}
+
+install_self() {
+  local source_path
+
+  source_path="$(self_path)"
+  mkdir -p "$INSTALL_DIR"
+  cp "$source_path" "$INSTALL_PATH"
+  chmod +x "$INSTALL_PATH"
+  echo "Installed tacit to ${INSTALL_PATH}"
+}
+
+download_latest_self() {
+  local output_path="$1"
+  local curl_args=(-fsSL)
+
+  require_command curl
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
+
+  curl "${curl_args[@]}" -o "$output_path" "$SCRIPT_SOURCE_URL"
+}
+
+require_cached_jars() {
+  [[ -f "$SERVER_JAR" && -f "$LIBRARY_JAR" ]] || fail "No cached TACIT jars were found. Run 'tacit update' first."
+}
+
+cmd_setup() {
+  ensure_java
+  install_self
+  update_profile_path
+  download_latest_release
+}
+
+cmd_update() {
+  download_latest_release
+}
+
+cmd_self_update() {
+  local source_path source_dir tmp_path
+
+  source_path="$(self_path)"
+  [[ -f "$source_path" ]] || fail "Current tacit script was not found at ${source_path}."
+
+  source_dir="$(dirname "$source_path")"
+  tmp_path="$(mktemp "${source_dir}/tacit.self-update.XXXXXX")" || fail "Unable to create a temporary file in ${source_dir}."
+
+  echo "Checking ${SCRIPT_SOURCE_URL}"
+  if ! download_latest_self "$tmp_path"; then
+    rm -f "$tmp_path"
+    fail "Failed to download the latest tacit wrapper."
+  fi
+
+  if ! "$BASH" -n "$tmp_path"; then
+    rm -f "$tmp_path"
+    fail "Downloaded tacit wrapper is not a valid Bash script."
+  fi
+
+  if cmp -s "$source_path" "$tmp_path"; then
+    rm -f "$tmp_path"
+    echo "tacit is already up to date at ${source_path}."
+    return 0
+  fi
+
+  chmod +x "$tmp_path"
+  if ! mv "$tmp_path" "$source_path"; then
+    rm -f "$tmp_path"
+    fail "Unable to replace ${source_path}. Check file permissions and try again."
+  fi
+
+  echo "Updated tacit at ${source_path}"
+}
+
+cmd_uninstall() {
+  if [[ -f "$INSTALL_PATH" ]]; then
+    rm -f "$INSTALL_PATH"
+    echo "Removed ${INSTALL_PATH}"
+  else
+    echo "No installed tacit wrapper was found at ${INSTALL_PATH}."
+  fi
+
+  if [[ -d "$CACHE_DIR" ]]; then
+    rm -rf "$CACHE_DIR"
+    echo "Removed ${CACHE_DIR}"
+  else
+    echo "No TACIT cache directory was found at ${CACHE_DIR}."
+  fi
+}
+
+cmd_serve() {
+  ensure_java
+  require_cached_jars
+  exec java -jar "$SERVER_JAR" --library-jar "$LIBRARY_JAR" "$@"
+}
+
+main() {
+  local command="${1:-help}"
+  local subcommand
+
+  case "$command" in
+    help|-h|--help)
+      print_help
+      ;;
+    setup)
+      shift
+      [[ $# -eq 0 ]] || fail "setup does not accept additional arguments."
+      cmd_setup
+      ;;
+    uninstall)
+      fail "The 'uninstall' command has moved to 'tacit self uninstall'."
+      ;;
+    self)
+      shift
+      subcommand="${1:-help}"
+      case "$subcommand" in
+        help|-h|--help)
+          [[ $# -le 1 ]] || fail "self help does not accept additional arguments."
+          print_self_help
+          ;;
+        update)
+          shift
+          [[ $# -eq 0 ]] || fail "self update does not accept additional arguments."
+          cmd_self_update
+          ;;
+        uninstall)
+          shift
+          [[ $# -eq 0 ]] || fail "self uninstall does not accept additional arguments."
+          cmd_uninstall
+          ;;
+        *)
+          fail "Unknown self command: ${subcommand}"
+          ;;
+      esac
+      ;;
+    update)
+      shift
+      [[ $# -eq 0 ]] || fail "update does not accept additional arguments."
+      cmd_update
+      ;;
+    serve)
+      shift
+      cmd_serve "$@"
+      ;;
+    *)
+      echo "Unknown command: ${command}" >&2
+      echo >&2
+      print_help >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

@@ -20,31 +20,63 @@ TACIT provides a standard MCP server that communicates via JSON-RPC over stdio. 
 
 Requires JDK 17+
 
-### 1. Download Prebuilt Release JARs (Recommended)
+### Installing TACIT
 
-Use the release download script to get started quickly (no local build required).
-It will download the latest server and library JARs from GitHub releases and place them in the current directory.
+Choose one of the installation approaches below. The `tacit` CLI wrapper is the recommended option.
+
+#### Option 1: Install `tacit` (Recommended)
+
+`tacit` is a small wrapper command for managing TACIT locally. Use `tacit setup` once to install the command and fetch the latest release, `tacit update` to update the JARs, `tacit self update` to refresh the wrapper itself, and `tacit serve` to launch the MCP server.
 
 ```bash
-# Download the script directly (no git clone required)
+# Download the wrapper directly (no git clone required)
+curl -fsSL https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/tacit -o tacit
+chmod +x tacit
+
+# Install it and download the latest TACIT release
+./tacit setup
+```
+
+This installs the `tacit` command into `~/.local/bin`, ensures `~/.local/bin` is on `PATH`, and downloads the latest release into `~/.cache/tacit/`.
+
+Common commands:
+
+```bash
+# Refresh the cached release if a new version exists
+tacit update
+
+# Refresh the tacit wrapper itself
+tacit self update
+
+# Start the MCP server
+tacit serve
+
+# Remove the wrapper and cached release
+tacit self uninstall
+```
+
+By default, `tacit` uses:
+
+| Asset | Default path |
+|------|--------------|
+| MCP Server | `~/.cache/tacit/TACIT.jar` |
+| Library | `~/.cache/tacit/TACIT-library.jar` |
+
+#### Option 2: Download Prebuilt Release JARs Directly
+
+If you do not want the wrapper, use the release download script instead.
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/download_release.sh -o download_release.sh
 chmod +x download_release.sh
 
-# Run it
 ./download_release.sh
 ```
 
 Optional:
 
 ```bash
-# Or use wget instead of curl
-wget -q https://raw.githubusercontent.com/lampepfl/TACIT/refs/heads/main/download_release.sh -O download_release.sh
-chmod +x download_release.sh
-
-# Download into a custom directory
 ./download_release.sh ./dist
-
-# Use latest pre-release instead of latest stable release
 ./download_release.sh --pre-release ./dist
 ```
 
@@ -55,7 +87,9 @@ By default, this downloads:
 | MCP Server | `./TACIT.jar` |
 | Library | `./TACIT-library.jar` |
 
-### 2. Build from Source (Alternative)
+If you are developing TACIT or want to build from the current source tree, use the source build path.
+
+#### Option 3: Build from Source
 
 Requires JDK 17+ and sbt 1.12+.
 
@@ -83,14 +117,32 @@ This builds and copies two JARs:
 | MCP Server | `./TACIT.jar` (or `./dist/TACIT.jar`) |
 | Library | `./TACIT-library.jar` (or `./dist/TACIT-library.jar`) |
 
-### 3. Configure Your Agent
+Once TACIT is installed through any of the options above, configure your agent to launch the MCP server.
 
-Add TACIT as an MCP server in your agent's configuration. Replace the paths below with absolute paths to your JARs (downloaded or built).
+
+### Configure Your Agent
+
+Add TACIT as an MCP server in your agent's configuration. If you installed `tacit` CLI, just use `tacit serve`. If you installed TACIT manually, use the explicit `java -jar ... --library-jar ...` form instead.
 
 <details open>
 <summary><b>Claude Code</b></summary>
 
-Add to your project's `.mcp.json` (or `~/.claude.json` for global):
+Add to your project's `.mcp.json` (or `~/.claude.json` for global).
+
+With `tacit`:
+
+```json
+{
+  "mcpServers": {
+    "tacit": {
+      "command": "tacit",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+With manual JAR paths:
 
 ```json
 {
@@ -111,7 +163,24 @@ Add to your project's `.mcp.json` (or `~/.claude.json` for global):
 <details>
 <summary><b>OpenCode</b></summary>
 
-Add to your `opencode.json`:
+Add to your `opencode.json`.
+
+With `tacit`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "tacit": {
+      "type": "local",
+      "enabled": true,
+      "command": ["tacit", "serve"]
+    }
+  }
+}
+```
+
+With manual JAR paths:
 
 ```json
 {
@@ -135,7 +204,22 @@ Add to your `opencode.json`:
 <details>
 <summary><b>GitHub Copilot (VS Code)</b></summary>
 
-Add to your `.vscode/mcp.json`:
+Add to your `.vscode/mcp.json`.
+
+With `tacit`:
+
+```json
+{
+  "servers": {
+    "tacit": {
+      "command": "tacit",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+With manual JAR paths:
 
 ```json
 {
